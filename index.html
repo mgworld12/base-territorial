@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <style id="guarda-css">html{visibility:hidden}</style>
+    
+    <!-- SDK Oficial do Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+    (async function () {
+      const css = document.getElementById('guarda-css');
+
+      // Se não estiver no GitHub Pages, remove o bloqueio e permite acesso local/desenvolvimento
+      if (!location.hostname.endsWith('github.io')) { 
+        if (css) css.remove(); 
+        return; 
+      }
+
+      // Em index.html (página de login), apenas liberamos a visibilidade da página
+      if (css) css.remove();
+    })();
+    </script>
+
+    <title>Acesso ao Sistema - Base Territorial</title>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('background.png');
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            width: 320px;
+            max-width: 92vw;
+            z-index: 10;
+        }
+        .login-card h2 {
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            color: #666;
+            font-size: 14px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .dica {
+            display: block;
+            margin-top: 4px;
+            color: #888;
+            font-size: 12px;
+            line-height: 1.3;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+        }
+        .btn-submit:hover {
+            background-color: #0056b3;
+        }
+        .btn-submit:disabled {
+            opacity: 0.7;
+            cursor: default;
+        }
+        .links {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .links a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .msg {
+            font-size: 13px;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        .aviso-cadastro {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f1f6fc;
+            border-left: 3px solid #007bff;
+            border-radius: 4px;
+            color: #444;
+            font-size: 13px;
+            line-height: 1.4;
+            text-align: center;
+        }
+        .aviso-cadastro a {
+            color: #007bff;
+            font-weight: bold;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .aviso-cadastro a:hover {
+            text-decoration: underline;
+        }
+        .btn-musgo {
+            background-color: #4a5d23;
+            color: #fff;
+        }
+        .btn-musgo:hover {
+            background-color: #3a4a1b;
+        }
+        .btn-marinho {
+            background-color: #0b2545;
+            color: #fff;
+        }
+        .btn-marinho:hover {
+            background-color: #081a31;
+        }
+        .msg-erro { color: #d9534f; }
+        .msg-sucesso { color: #28a745; }
+        .msg-aviso { color: #b7791f; }
+        .form-section { display: none; }
+        .form-section.active { display: block; }
+        .sub-escolha {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+
+    <!-- FORMULÁRIO DE LOGIN -->
+    <div id="sec-login" class="form-section active">
+        <h2>Login</h2>
+        <form onsubmit="fazerLogin(event)">
+            <div class="form-group">
+                <label for="email">E-mail institucional</label>
+                <input type="email" id="email" placeholder="nome.sobrenome@ibge.gov.br" autocomplete="username" required>
+                <span class="dica">Use seu e-mail @ibge.gov.br</span>
+            </div>
+            <div class="form-group">
+                <label for="senha">Senha</label>
+                <input type="password" id="senha" placeholder="Seu SIAPE" autocomplete="current-password" required>
+                <span class="dica">A senha é o seu número do SIAPE</span>
+            </div>
+            <button type="submit" id="btn-login" class="btn-submit">Entrar</button>
+            <div id="msg-login" class="msg"></div>
+        </form>
+        <div id="aviso-cadastro" class="aviso-cadastro">
+            Solicite o seu cadastro pelo e-mail
+            <a href="mailto:maury.goncalves@ibge.gov.br?subject=Solicitação de cadastro - Base Territorial">maury.goncalves@ibge.gov.br</a>.
+        </div>
+    </div>
+
+    <!-- ESCOLHA DA PÁGINA APÓS O LOGIN -->
+    <div id="sec-escolha" class="form-section">
+        <h2>Escolha o acesso</h2>
+        <p class="sub-escolha">Para qual página deseja ir?</p>
+        <a href="setoresABT.html" class="btn-submit">Setores ABT</a>
+        <a href="setoresAJA.html" class="btn-submit">Setores AJA</a>
+        <a href="previsao.html" class="btn-submit btn-musgo">Previsão de finalização</a>
+        <a href="escala.html" class="btn-submit btn-marinho">Escala de Servidores</a>
+        <div class="links">
+            <a href="#" onclick="sair(event)">Sair</a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // =========================================================================
+    // CONFIGURAÇÃO DO SUPABASE (BASE_TERRITORIAL_2026)
+    // =========================================================================
+    const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16';
+
+    // Domínio de e-mail aceito (somente IBGE)
+    const DOMINIO_PERMITIDO = '@ibge.gov.br';
+
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function mostrarSessao(idSessao) {
+        document.querySelectorAll('.form-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.msg').forEach(el => el.style.display = 'none');
+        document.getElementById('aviso-cadastro').style.display = 'none';
+        document.getElementById(idSessao).classList.add('active');
+    }
+
+    function mostrarMsg(el, tipo, texto) {
+        el.className = 'msg msg-' + tipo;
+        el.innerText = texto;
+        el.style.display = 'block';
+    }
+
+    async function contaAprovada(userId) {
+        const { data, error } = await _supabase
+            .from('perfis')
+            .select('aprovado')
+            .eq('id', userId)
+            .maybeSingle();
+        if (error) return null;
+        return data ? data.aprovado === true : false;
+    }
+
+    // Se o usuário já estiver logado e aprovado, mostra direto a escolha de página
+    (async function verificarSessaoExistente() {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (session && (await contaAprovada(session.user.id)) === true) {
+            mostrarSessao('sec-escolha');
+        }
+    })();
+
+    async function fazerLogin(event) {
+        event.preventDefault();
+        const email = document.getElementById('email').value.trim().toLowerCase();
+        const password = document.getElementById('senha').value.trim();
+        const msg = document.getElementById('msg-login');
+        const btn = document.getElementById('btn-login');
+
+        msg.style.display = 'none';
+        const avisoCadastro = document.getElementById('aviso-cadastro');
+        avisoCadastro.style.display = 'none';
+
+        // Só aceita e-mail do domínio do IBGE
+        if (!email.endsWith(DOMINIO_PERMITIDO)) {
+            mostrarMsg(msg, 'erro', 'Use o seu e-mail institucional (' + DOMINIO_PERMITIDO + ').');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerText = 'Verificando...';
+
+        const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+
+        if (error) {
+            mostrarMsg(msg, 'erro', 'E-mail ou senha (SIAPE) incorretos.');
+            avisoCadastro.style.display = 'block';
+        } else {
+            const aprovada = await contaAprovada(data.user.id);
+
+            if (aprovada === true) {
+                // Login correto: mostra a escolha entre AJA e ABT
+                document.getElementById('senha').value = '';
+                mostrarSessao('sec-escolha');
+                btn.disabled = false;
+                btn.innerText = 'Entrar';
+                return;
+            }
+
+            await _supabase.auth.signOut();
+            if (aprovada === false) {
+                mostrarMsg(msg, 'aviso', 'Seu acesso ainda não foi liberado pelo administrador.');
+                avisoCadastro.style.display = 'block';
+            } else {
+                mostrarMsg(msg, 'erro', 'Não foi possível verificar a sua conta. Tente novamente.');
+            }
+        }
+
+        btn.disabled = false;
+        btn.innerText = 'Entrar';
+    }
+
+    async function sair(event) {
+        event.preventDefault();
+        await _supabase.auth.signOut();
+        mostrarSessao('sec-login');
+    }
+</script>
+
+</body>
+</html>

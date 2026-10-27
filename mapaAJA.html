@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa de Setores - AJA</title>
+
+  <!-- Proteção de acesso: exige login feito no index.html -->
+  <style>html { visibility: hidden; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Resolve true se o usuário está logado e aprovado; senão manda para o index.html
+    const acessoOk = (async () => {
+      try {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) { window.location.replace('index.html'); return false; }
+
+        const { data, error } = await _supabase
+          .from('perfis').select('aprovado').eq('id', session.user.id).maybeSingle();
+        if (error || !data || data.aprovado !== true) {
+          await _supabase.auth.signOut();
+          window.location.replace('index.html');
+          return false;
+        }
+        document.documentElement.style.visibility = 'visible';
+        return true;
+      } catch (e) {
+        window.location.replace('index.html');
+        return false;
+      }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; font-family: Arial, sans-serif; }
+    #map { width: 100%; height: 100vh; }
+    .setor-tooltip {
+      background-color: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 13px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .setor-tooltip b { font-size: 15px; color: #ffe066; }
+    .setor-tooltip::before { display: none; }
+    #aviso {
+      position: absolute; z-index: 1000; left: 50%; top: 12px; transform: translateX(-50%);
+      background: #fff; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    }
+    #voltar {
+      position: absolute; z-index: 1000; left: 60px; top: 10px;
+      background: #fff; color: #222; text-decoration: none; font-size: 14px; font-weight: bold;
+      padding: 8px 14px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    }
+    #voltar:hover { background: #f0f0f0; }
+    .setor-tooltip .info { margin-top: 4px; font-size: 12px; line-height: 1.5; color: #e8e8e8; }
+    .setor-tooltip .info span { color: #9ad1ff; }
+    .info-form { font-size: 13px; min-width: 290px; }
+    .info-form h4 { font-size: 15px; margin-bottom: 8px; }
+    .info-form .linha { display: flex; gap: 6px; margin-bottom: 8px; }
+    .info-form label { flex: 1; display: flex; flex-direction: column; font-size: 11px; font-weight: bold; color: #444; }
+    .info-form input, .info-form select { margin-top: 2px; padding: 4px; font-size: 13px; width: 100%; border: 1px solid #aaa; border-radius: 4px; }
+    .info-form .acoes { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+    .info-form button { padding: 6px 12px; border: 0; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .info-form .salvar { background: #000080; color: #fff; }
+    .info-form .limpar { background: #ddd; }
+    .info-form .msg { font-size: 12px; margin-left: 4px; }
+    #busca {
+      position: absolute; z-index: 1000; left: 170px; top: 10px;
+      background: #fff; padding: 5px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+      display: flex; align-items: center; gap: 4px;
+    }
+    #busca input { width: 150px; padding: 5px 7px; font-size: 14px; border: 1px solid #aaa; border-radius: 4px; }
+    #busca button { padding: 6px 10px; font-size: 13px; font-weight: bold; border: 0; border-radius: 4px; background: #000080; color: #fff; cursor: pointer; }
+    #buscaMsg { font-size: 12px; color: #c00; max-width: 160px; }
+    #buscaMsg.ok { color: #060; }
+    #selecao {
+      position: absolute; z-index: 1000; right: 60px; top: 10px;
+      background: #fff; padding: 5px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+      display: flex; align-items: center; gap: 4px;
+    }
+    #selecao button { padding: 6px 10px; font-size: 13px; font-weight: bold; border: 0; border-radius: 4px; background: #000080; color: #fff; cursor: pointer; }
+    #selecao button.ativo { background: #ff6a00; }
+    #selecao button.sec { background: #ddd; color: #222; }
+    #selecao select { padding: 6px 6px; font-size: 13px; border: 1px solid #aaa; border-radius: 4px; max-width: 190px; background: #fff; color: #222; }
+    #selecao .extra { display: none; align-items: center; gap: 4px; }
+    #selecao.ativo .extra { display: flex; }
+    #selContagem { font-size: 12px; color: #333; min-width: 82px; }
+    #selContagem.ok { color: #060; font-weight: bold; }
+    #map.modo-selecao .leaflet-interactive { cursor: pointer; }
+    #msgMarcas { position: fixed; left: 8px; bottom: 32px; z-index: 1000; background: rgba(255,255,255,.92); color: #c00; font: 12px Arial, sans-serif; padding: 4px 8px; border-radius: 4px; display: none; max-width: 80vw; }
+    .setor-tooltip .servidor { margin-top: 4px; font-size: 12px; color: #ffb27a; }
+    .setor-tooltip .servidor b { font-size: 12px; color: #ffb27a; }
+    @media (max-width: 600px) { #busca { top: 58px; left: 10px; } #selecao { top: 106px; right: auto; left: 10px; } }
+  </style>
+</head>
+<body>
+
+  <a id="voltar" href="setoresAJA.html">← Voltar</a>
+  <div id="busca">
+    <input id="buscaSetor" type="text" inputmode="numeric" maxlength="15" autocomplete="off" placeholder="Setor ou 4 últimos dígitos">
+    <button id="buscaBtn" type="button">Buscar</button>
+    <span id="buscaMsg"></span>
+  </div>
+  <div id="selecao">
+    <button id="selBtn" type="button">Selecionar Setor</button>
+    <span class="extra">
+      <select id="selServidor" title="Servidor que será associado aos próximos setores clicados"></select>
+      <span id="selContagem">0 selecionados</span>
+      <button id="selCopiar" type="button">Copiar</button>
+      <button id="selLimpar" type="button" class="sec">Limpar tudo</button>
+    </span>
+  </div>
+  <div id="map"></div>
+  <div id="msgMarcas"></div>
+  <div id="aviso">Carregando mapa…</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <script>
+    // ===== CONFIGURAÇÃO =====
+    // Mesma planilha usada no setoresAJA.html (coluna "Status" = caixinha de concluído)
+    const SHEET_ID = "1Bu5hq9aRMeWh-4bk9-34QZ0InyrtitQEved6-iEQ7Dc";
+    const GID = "1534942531";
+    const COR_CONCLUIDO = "#000080";   // azul marinho
+    const OPACIDADE_CONCLUIDO = 0.70;  // 70% (0 = invisível, 1 = sólido)
+    const COR_RISCO = "#FF0000";       // vermelho (Área de Risco)
+    const OPACIDADE_RISCO = 0.70;      // 70%
+    const COR_CNEFE = "#00A651";       // verde (prioridade CNEFE)
+    const COR_PNAD = "#1E90FF";        // azul (prioridade PNAD)
+    const OPACIDADE_PRIORIDADE = 0.70; // 70%
+    const ARQUIVO_KMZ = "AJA.kmz";
+
+    const $ = id => document.getElementById(id);
+    const map = L.map('map', { preferCanvas: true }).setView([-22.93, -43.36], 12);
+    const canvas = L.canvas({ padding: 0.5 });
+
+    // Mapas de fundo
+    const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+    const attrEsri = 'Imagens © Esri, Maxar, Earthstar Geographics';
+    const satelite = L.tileLayer(esri + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: attrEsri
+    });
+    const nomes = L.layerGroup([
+      L.tileLayer(esri + 'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+      L.tileLayer(esri + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
+    ]);
+    const hibrido = L.layerGroup([
+      L.tileLayer(esri + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: attrEsri }),
+      nomes
+    ]);
+    const ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap'
+    });
+
+    satelite.addTo(map);   // vista padrão: satélite
+    L.control.layers({
+      'Satélite': satelite,
+      'Satélite com nomes de ruas': hibrido,
+      'Mapa de ruas': ruas
+    }, null, { position: 'topright', collapsed: true }).addTo(map);
+
+    // Estilos
+    const ESTILO_NORMAL = { color: '#ffff00', weight: 4, fill: true, fillColor: COR_CONCLUIDO, fillOpacity: 0 };
+    const ESTILO_CONCLUIDO = { fillOpacity: OPACIDADE_CONCLUIDO };
+    const ESTILO_FACE = { color: '#ff0000', weight: 2, interactive: false, renderer: canvas };
+
+    // código completo (15 dígitos) -> { layer, concluido }
+    const setores = new Map();
+    const porFinal4 = new Map();   // 4 últimos dígitos -> [códigos completos]
+
+    function fundoPrioridade(item) {
+      if (item.pri === 'CNEFE') return { fillColor: COR_CNEFE, fillOpacity: OPACIDADE_PRIORIDADE };
+      if (item.pri === 'PNAD')  return { fillColor: COR_PNAD,  fillOpacity: OPACIDADE_PRIORIDADE };
+      return null;
+    }
+    function estiloDe(item, hover) {
+      // Fundo normal: Área de Risco (vermelho) > Concluído (azul marinho) > Prioridade (CNEFE verde / PNAD azul)
+      // Com o mouse em cima: se houver CNEFE/PNAD, o fundo assume a cor da prioridade
+      const prio = fundoPrioridade(item);
+      let fundo;
+      if (hover && prio) fundo = prio;
+      else if (item.risco) fundo = { fillColor: COR_RISCO, fillOpacity: OPACIDADE_RISCO };
+      else if (item.concluido) fundo = ESTILO_CONCLUIDO;
+      else if (item.sel || item.usado) fundo = { fillColor: '#ff6a00', fillOpacity: 0.70 };   // selecionado / já selecionado
+      else fundo = prio || {};
+      return Object.assign({}, ESTILO_NORMAL, { weight: 4, color: '#ffff00' }, fundo);
+    }
+
+    // ===== KML (leitura própria, uma camada por setor) =====
+    const dados = (pm, nome) => {
+      for (const sd of pm.getElementsByTagName('SimpleData')) {
+        if (sd.getAttribute('name') === nome) return sd.textContent.trim();
+      }
+      return '';
+    };
+
+    const parseCoords = txt => txt.trim().split(/\s+/).map(p => {
+      const [lon, lat] = p.split(',');
+      return [parseFloat(lat), parseFloat(lon)];
+    }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+
+    function desenharFaces(pm) {
+      for (const ls of pm.getElementsByTagName('LineString')) {
+        const c = ls.getElementsByTagName('coordinates')[0];
+        if (c) L.polyline(parseCoords(c.textContent), ESTILO_FACE).addTo(map);
+      }
+    }
+
+    function desenharSetor(pm) {
+      const nomeEl = pm.getElementsByTagName('name')[0];
+      const codigo = (nomeEl ? nomeEl.textContent : '').trim();
+      if (!codigo) return;
+
+      const polys = [];
+      for (const pg of pm.getElementsByTagName('Polygon')) {
+        const rings = [];
+        const outer = pg.getElementsByTagName('outerBoundaryIs')[0];
+        if (outer) rings.push(parseCoords(outer.getElementsByTagName('coordinates')[0].textContent));
+        for (const inner of pg.getElementsByTagName('innerBoundaryIs')) {
+          rings.push(parseCoords(inner.getElementsByTagName('coordinates')[0].textContent));
+        }
+        if (rings.length) polys.push(rings);
+      }
+      if (!polys.length) return;
+
+      const layer = L.polygon(polys.length === 1 ? polys[0] : polys,
+        Object.assign({ renderer: canvas, interactive: true }, ESTILO_NORMAL));
+      const item = { layer, concluido: false, risco: false, pri: '', codigo, servidor: '' };
+      setores.set(codigo, item);
+
+      const final4 = dados(pm, 'CD_SETOR') || codigo.slice(-4);
+      if (!porFinal4.has(final4)) porFinal4.set(final4, []);
+      porFinal4.get(final4).push(codigo);
+
+      // Número do setor no mouse (somente este setor reage)
+      layer.bindTooltip(
+        () => tooltipHtml(codigo),
+        { sticky: true, direction: 'auto', className: 'setor-tooltip' }
+      );
+      // Botão direito: abre o formulário de dados do setor
+      layer.on('contextmenu', e => {
+        L.DomEvent.preventDefault(e.originalEvent);
+        layer.closeTooltip();
+        abrirFormulario(item, e.latlng);
+      });
+      layer.on('click', () => { if (modoSelecao) alternarSelecao(item); });
+      layer.on('mouseover', () => layer.setStyle(Object.assign(estiloDe(item, true), { weight: 6, color: '#ffffff' })));
+      layer.on('mouseout', () => layer.setStyle(estiloDe(item)));
+      layer.addTo(map);
+    }
+
+    async function carregarKMZ(url) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Não foi possível baixar o ' + url + '. Verifique o caminho/nome.');
+      const zip = await JSZip.loadAsync(await resp.arrayBuffer());
+      const kmlFile = zip.file('doc.kml') || (zip.file(/\.kml$/i) || [])[0];
+      if (!kmlFile) throw new Error('Nenhum arquivo .kml encontrado dentro do KMZ.');
+
+      const dom = new DOMParser().parseFromString(await kmlFile.async('string'), 'text/xml');
+      if (dom.querySelector('parsererror')) throw new Error('O KML interno está corrompido.');
+
+      const pms = Array.from(dom.getElementsByTagName('Placemark'));
+      // 1º as faces (linhas, ficam por baixo), depois os setores (polígonos)
+      pms.filter(pm => pm.getElementsByTagName('LineString').length).forEach(desenharFaces);
+      pms.filter(pm => pm.getElementsByTagName('Polygon').length).forEach(desenharSetor);
+
+      const grupo = L.featureGroup(Array.from(setores.values()).map(s => s.layer));
+      if (grupo.getBounds().isValid()) map.fitBounds(grupo.getBounds());
+    }
+
+    // ===== DADOS DO SETOR (botão direito) =====
+    const MAPA = 'AJA';
+    const infos = new Map();   // código do setor -> dados
+    const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const escHtml = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const vazio = v => v === null || v === undefined || v === '';
+
+    function tooltipHtml(codigo) {
+      let h = `Setor ${codigo.slice(0, -4)}<b>${codigo.slice(-4)}</b>`;
+      const it = setores.get(codigo);
+      if (it && it.servidor) h += `<div class="servidor">Servidor: <b>${escHtml(it.servidor)}</b></div>`;
+      const d = infos.get(codigo);
+      if (!d) return h;
+      const l1 = [];
+      if (!vazio(d.ano)) l1.push(`<span>Ano:</span> ${d.ano}`);
+      if (!vazio(d.trimestre)) l1.push(`<span>Trimestre:</span> ${d.trimestre}º`);
+      if (!vazio(d.mes)) l1.push(`<span>Mês:</span> ${MESES[d.mes - 1] || d.mes}`);
+      if (!vazio(d.semana)) l1.push(`<span>Semana:</span> ${d.semana}`);
+      const l2 = [];
+      if (!vazio(d.ano_entrada)) l2.push(`<span>Ano de entrada:</span> ${d.ano_entrada}`);
+      if (!vazio(d.trimestre_entrada)) l2.push(`<span>Trim. de entrada:</span> ${d.trimestre_entrada}º`);
+      if (!vazio(d.ano_saida)) l2.push(`<span>Ano de saída:</span> ${d.ano_saida}`);
+      if (!vazio(d.trimestre_saida)) l2.push(`<span>Trim. de saída:</span> ${d.trimestre_saida}º`);
+      if (l1.length || l2.length) {
+        h += '<div class="info">' + [l1.join(' &nbsp;|&nbsp; '), l2.join(' &nbsp;|&nbsp; ')].filter(Boolean).join('<br>') + '</div>';
+      }
+      return h;
+    }
+
+    async function carregarInfos() {
+      try {
+        const { data, error } = await _supabase.from('setor_info').select('*').eq('mapa', MAPA);
+        if (error) throw error;
+        infos.clear();
+        data.forEach(d => infos.set(d.setor, d));
+      } catch (e) {
+        console.warn('Dados dos setores não carregados:', e.message || e);
+      }
+    }
+
+    function selectOpts(opts, first) {
+      return '<option value="">—</option>' + opts.map((t, i) => `<option value="${i + 1}">${t}</option>`).join('');
+    }
+
+    function abrirFormulario(item, latlng) {
+      const codigo = item.codigo;
+      const d = infos.get(codigo) || {};
+      const tri = ['1º', '2º', '3º', '4º'];
+      const el = document.createElement('div');
+      el.className = 'info-form';
+      el.innerHTML = `
+        <h4>Setor ${codigo.slice(0, -4)}<b>${codigo.slice(-4)}</b></h4>
+        <div class="linha">
+          <label>Ano<input type="number" name="ano" min="2000" max="2100"></label>
+          <label>Trimestre<select name="trimestre">${selectOpts(tri)}</select></label>
+          <label>Mês<select name="mes">${selectOpts(MESES)}</select></label>
+          <label>Semana<input type="number" name="semana" min="1" max="53"></label>
+        </div>
+        <div class="linha">
+          <label>Ano de entrada<input type="number" name="ano_entrada" min="2000" max="2100"></label>
+          <label>Trimestre de entrada<select name="trimestre_entrada">${selectOpts(tri)}</select></label>
+          <label>Ano de saída<input type="number" name="ano_saida" min="2000" max="2100"></label>
+          <label>Trimestre de saída<select name="trimestre_saida">${selectOpts(tri)}</select></label>
+        </div>
+        <div class="acoes">
+          <button type="button" class="salvar">Salvar</button>
+          <button type="button" class="limpar">Limpar tudo</button>
+          <span class="msg"></span>
+        </div>`;
+      const campos = ['ano','trimestre','mes','semana','ano_entrada','trimestre_entrada','ano_saida','trimestre_saida'];
+      campos.forEach(c => { const f = el.querySelector(`[name="${c}"]`); if (!vazio(d[c])) f.value = d[c]; });
+      if (vazio(d.ano)) el.querySelector('[name="ano"]').value = 2027; // padrão, editável
+      // Ano de entrada preenche Ano de saída (+10); saída continua editável e não altera a entrada
+      const fEnt = el.querySelector('[name="ano_entrada"]'), fSai = el.querySelector('[name="ano_saida"]');
+      fEnt.addEventListener('input', () => {
+        const v = fEnt.value.trim();
+        if (/^\d{4}$/.test(v)) fSai.value = parseInt(v, 10) + 10;
+      });
+      const msg = el.querySelector('.msg');
+
+      el.querySelector('.limpar').onclick = () => campos.forEach(c => { el.querySelector(`[name="${c}"]`).value = ''; });
+      el.querySelector('.salvar').onclick = async () => {
+        const valores = {};
+        campos.forEach(c => { const v = el.querySelector(`[name="${c}"]`).value; valores[c] = v === '' ? null : parseInt(v, 10); });
+        msg.style.color = '#333'; msg.textContent = 'Salvando…';
+        try {
+          if (campos.every(c => valores[c] === null)) {
+            const { error } = await _supabase.from('setor_info').delete().eq('mapa', MAPA).eq('setor', codigo);
+            if (error) throw error;
+            infos.delete(codigo);
+          } else {
+            const linha = Object.assign({ mapa: MAPA, setor: codigo, atualizado_em: new Date().toISOString() }, valores);
+            const { error } = await _supabase.from('setor_info').upsert(linha, { onConflict: 'mapa,setor' });
+            if (error) throw error;
+            infos.set(codigo, linha);
+          }
+          map.closePopup();
+        } catch (e) {
+          msg.style.color = '#c00'; msg.textContent = 'Erro ao salvar: ' + (e.message || e);
+        }
+      };
+      L.DomEvent.disableClickPropagation(el);
+      L.popup({ minWidth: 300, maxWidth: 380, closeOnClick: true })
+        .setLatLng(latlng).setContent(el).openOn(map);
+    }
+
+    // ===== SELECIONAR SETOR (clicar nos setores e copiar os números) =====
+    const SEPARADOR_COPIA = '\n';   // separador dos números copiados ('\n' = um por linha; troque por ', ' para uma linha só)
+    let modoSelecao = false;
+    const selecionados = new Map();   // código -> item (na ordem em que foram clicados)
+
+    function atualizarContagem(msg) {
+      const el = $('selContagem');
+      el.className = msg ? 'ok' : '';
+      el.textContent = msg || (selecionados.size + (selecionados.size === 1 ? ' selecionado' : ' selecionados'));
+    }
+    // ===== SERVIDORES (mesma lista de APMs do setoresAJA.html, lida do localStorage do navegador) =====
+    const servidoresPlanilha = new Set();   // nomes da coluna APM da planilha (preenchido em atualizarStatus)
+    const servidoresRemotos = new Set();    // servidores já gravados nas marcações compartilhadas
+    function listaServidores() {
+      const nomes = new Set([...servidoresPlanilha, ...servidoresRemotos]);
+      try { const a = JSON.parse(localStorage.getItem('apms_lista') || 'null'); if (Array.isArray(a)) a.forEach(n => n && nomes.add(n)); } catch (e) {}
+      return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+    let servidorAtual = '';   // servidor escolhido na caixa (guardado em variável, não lido do elemento no clique)
+    function carregarServidores() {
+      const sel = $('selServidor'), lista = listaServidores(), assin = lista.join('\u0001');
+      if (sel.dataset.assin === assin) return;       // lista não mudou
+      if (document.activeElement === sel) return;    // não mexe na caixa enquanto o usuário escolhe
+      sel.innerHTML = '<option value="">(sem servidor)</option>' +
+        lista.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+      sel.dataset.assin = assin;
+      sel.value = lista.includes(servidorAtual) ? servidorAtual : '';
+      servidorAtual = sel.value;
+      sel.title = lista.length ? 'Servidor que será associado aos próximos setores clicados'
+        : 'Nenhum servidor encontrado. Cadastre os nomes na coluna APM da planilha ou em "APMs" no setoresAJA.html.';
+    }
+
+    // ===== MARCAÇÕES COMPARTILHADAS (tabela setor_servidor no Supabase) =====
+    const pendentes = new Map();   // código -> nome do servidor ('' = sem servidor) ou null (remover marcação)
+    let gravando = false, ultimaGravacao = 0;
+    function avisoMarcas(t) { const el = $('msgMarcas'); el.textContent = t || ''; el.style.display = t ? 'block' : 'none'; }
+    async function gravarPendentes() {
+      if (gravando || !pendentes.size) return;
+      gravando = true;
+      const lote = new Map(pendentes);
+      try {
+        const up = [], del = [];
+        lote.forEach((v, c) => v === null ? del.push(c)
+          : up.push({ mapa: MAPA, setor: c, servidor: v, atualizado_em: new Date().toISOString() }));
+        if (up.length) {
+          const { error } = await _supabase.from('setor_servidor').upsert(up, { onConflict: 'mapa,setor' });
+          if (error) throw error;
+        }
+        if (del.length) {
+          const { error } = await _supabase.from('setor_servidor').delete().eq('mapa', MAPA).in('setor', del);
+          if (error) throw error;
+        }
+        lote.forEach((v, c) => { if (pendentes.get(c) === v) pendentes.delete(c); });
+        ultimaGravacao = Date.now();
+        avisoMarcas('');
+      } catch (e) {
+        console.warn('Marcações não gravadas:', e);
+        avisoMarcas('Não foi possível gravar as marcações (' + (e.message || e) + '). Nova tentativa em até 30 s.');
+      } finally {
+        gravando = false;
+      }
+    }
+    async function carregarMarcacoes() {
+      if (gravando || pendentes.size) return;      // não sobrescrever o que ainda não foi gravado
+      const t0 = Date.now();
+      try {
+        const remoto = new Map();
+        for (let ini = 0; ; ini += 1000) {
+          const { data, error } = await _supabase.from('setor_servidor').select('setor,servidor')
+            .eq('mapa', MAPA).order('setor').range(ini, ini + 999);
+          if (error) throw error;
+          data.forEach(d => remoto.set(d.setor, d.servidor || ''));
+          if (data.length < 1000) break;
+        }
+        if (gravando || pendentes.size || t0 < ultimaGravacao) return;   // leitura ficou velha
+        servidoresRemotos.clear();
+        remoto.forEach(n => { if (n) servidoresRemotos.add(n); });
+        carregarServidores();
+        setores.forEach((it, c) => {
+          if (it.sel) return;                       // seleção em andamento neste computador
+          if (remoto.has(c)) {
+            const n = remoto.get(c);
+            if (!it.usado || it.servidor !== n) { it.usado = true; it.servidor = n; it.layer.setStyle(estiloDe(it)); }
+          } else if (it.usado) {
+            it.usado = false; it.servidor = ''; it.layer.setStyle(estiloDe(it));
+          }
+        });
+      } catch (e) {
+        console.warn('Marcações não carregadas:', e.message || e);
+      }
+    }
+    function alternarSelecao(item) {
+      // clicar num setor já selecionado (borda laranja) ou já marcado (fundo laranja) desmarca com 1 clique
+      if (item.sel || item.usado) {
+        const eraUsado = item.usado;
+        selecionados.delete(item.codigo); item.sel = false; item.usado = false; item.servidor = '';
+        if (eraUsado) { pendentes.set(item.codigo, null); gravarPendentes(); }
+      }
+      else { selecionados.set(item.codigo, item); item.sel = true; item.servidor = servidorAtual; }
+      item.layer.setStyle(estiloDe(item, true));
+      if (item.sel) item.layer.bringToFront();
+      atualizarContagem();
+    }
+    function limparSelecao() {
+      const marcados = Array.from(setores.values()).filter(it => it.sel || it.usado);
+      if (marcados.length > 1 && !confirm('Remover a marcação laranja de ' + marcados.length + ' setores?')) return;
+      marcados.forEach(it => {
+        if (it.usado) pendentes.set(it.codigo, null);
+        it.sel = false; it.usado = false; it.servidor = ''; it.layer.setStyle(estiloDe(it));
+      });
+      selecionados.clear();
+      gravarPendentes();
+      atualizarContagem();
+    }
+    // ao sair do modo: os setores selecionados ficam marcados em laranja (já selecionados)
+    function encerrarSelecao() {
+      selecionados.forEach(it => {
+        it.sel = false; it.usado = true; it.layer.setStyle(estiloDe(it));
+        pendentes.set(it.codigo, it.servidor || '');
+      });
+      selecionados.clear();
+      gravarPendentes();
+      atualizarContagem();
+    }
+    async function copiarSelecao() {
+      if (!selecionados.size) { atualizarContagem('Nenhum setor'); setTimeout(() => atualizarContagem(), 1500); return; }
+      // agrupa por servidor (na ordem em que apareceram): nome do servidor e, abaixo, os setores dele
+      const grupos = new Map();
+      selecionados.forEach((it, cod) => {
+        const nome = it.servidor || '';
+        if (!grupos.has(nome)) grupos.set(nome, []);
+        grupos.get(nome).push(cod);
+      });
+      const blocos = [];
+      grupos.forEach((cods, nome) => blocos.push((nome ? nome + '\n' : '') + cods.join(SEPARADOR_COPIA)));
+      const texto = blocos.join('\n\n');
+      try {
+        await navigator.clipboard.writeText(texto);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      }
+      atualizarContagem('Copiado!');
+      setTimeout(() => atualizarContagem(), 1500);
+    }
+    (() => {
+      const painel = $('selecao');
+      L.DomEvent.disableClickPropagation(painel);
+      L.DomEvent.disableScrollPropagation(painel);
+      $('selBtn').addEventListener('click', () => {
+        modoSelecao = !modoSelecao;
+        $('selBtn').classList.toggle('ativo', modoSelecao);
+        $('selBtn').textContent = modoSelecao ? 'Sair da seleção' : 'Selecionar Setor';
+        painel.classList.toggle('ativo', modoSelecao);
+        $('map').classList.toggle('modo-selecao', modoSelecao);
+        if (modoSelecao) carregarServidores();
+        if (!modoSelecao) encerrarSelecao();
+        atualizarContagem();
+      });
+      $('selServidor').addEventListener('change', e => { servidorAtual = e.target.value; });
+      $('selCopiar').addEventListener('click', copiarSelecao);
+      $('selLimpar').addEventListener('click', limparSelecao);
+    })();
+
+    // ===== PESQUISA DE SETOR (número completo ou 4 últimos dígitos) =====
+    let destaqueTimer = null, destacados = [];
+    function limparDestaque() {
+      clearTimeout(destaqueTimer);
+      destacados.forEach(it => { it.layer.closeTooltip(); it.layer.setStyle(estiloDe(it)); });
+      destacados = [];
+    }
+    function buscarSetor() {
+      const campo = $('buscaSetor'), msg = $('buscaMsg');
+      const num = campo.value.replace(/\D/g, '');
+      msg.className = ''; msg.textContent = '';
+      if (!num) { msg.textContent = 'Digite o número.'; return; }
+      const alvo = num.length <= 4 ? num.padStart(4, '0') : num;
+      let achados = Array.from(setores.values()).filter(it => it.codigo === alvo);
+      if (!achados.length) achados = Array.from(setores.values()).filter(it => it.codigo.endsWith(alvo));
+      limparDestaque();
+      if (!achados.length) { msg.textContent = 'Setor não encontrado.'; return; }
+      map.closePopup();
+      const grupo = L.featureGroup(achados.map(it => it.layer));
+      map.fitBounds(grupo.getBounds(), { maxZoom: 18, padding: [40, 40] });
+      achados.forEach(it => {
+        it.layer.setStyle({ weight: 7, color: '#00e5ff' });
+        it.layer.bringToFront();
+        it.layer.openTooltip(it.layer.getBounds().getCenter());
+      });
+      destacados = achados;
+      destaqueTimer = setTimeout(limparDestaque, 6000);
+      if (achados.length > 1) { msg.className = 'ok'; msg.textContent = achados.length + ' setores encontrados.'; }
+    }
+    (() => {
+      const campo = $('buscaSetor');
+      const busca = $('busca');
+      L.DomEvent.disableClickPropagation(busca);
+      L.DomEvent.disableScrollPropagation(busca);
+      // só aceita números (digitando, colando ou arrastando texto)
+      campo.addEventListener('keydown', e => {
+        if (e.key.length === 1 && !/\d/.test(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault();
+      });
+      campo.addEventListener('input', () => { campo.value = campo.value.replace(/\D/g, ''); $('buscaMsg').textContent = ''; });
+      campo.addEventListener('keydown', e => { if (e.key === 'Enter') buscarSetor(); });
+      $('buscaBtn').addEventListener('click', buscarSetor);
+    })();
+
+    // ===== Status vindo da planilha =====
+    function parseCSV(t) {
+      const l1 = t.split('\n')[0];
+      const sep = (l1.match(/;/g) || []).length >= (l1.match(/,/g) || []).length ? ';' : ',';
+      const out = []; let r = [], c = '', q = false;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (q) { if (ch === '"' && t[i + 1] === '"') { c += '"'; i++; } else if (ch === '"') q = false; else c += ch; }
+        else if (ch === '"') q = true;
+        else if (ch === sep) { r.push(c); c = ''; }
+        else if (ch === '\n') { r.push(c); out.push(r); r = []; c = ''; }
+        else if (ch !== '\r') c += ch;
+      }
+      if (c || r.length) { r.push(c); out.push(r); }
+      return out;
+    }
+
+    async function atualizarStatus() {
+      if (SHEET_ID.startsWith('COLE_') || GID.startsWith('COLE_')) {
+        console.warn('mapaAJA: configure SHEET_ID e GID da planilha do AJA.');
+        return;
+      }
+      try {
+        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}&_=${Date.now()}`;
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error('Planilha indisponível');
+        const rows = parseCSV(await r.text()).filter(x => x.some(v => v.trim()));
+        const head = rows[0].map(h => h.trim().toLowerCase());
+        const semAcento = h => h.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const iSetor = head.indexOf('setor'), iStatus = head.indexOf('status');
+        const iRisco = head.findIndex(h => semAcento(h) === 'area de risco');
+        const iApm = head.indexOf('apm');
+        let iPri = head.findIndex(h => /prioridade|cnefe|pnad/.test(semAcento(h)));
+        // se o título da coluna não for reconhecido, procura a coluna cujos valores são CNEFE / PNAD
+        if (iPri < 0) {
+          const nCol = Math.max(...rows.map(r => r.length));
+          for (let c = 0; c < nCol && iPri < 0; c++) {
+            if (rows.slice(1).some(r => /^\s*(cnefe|pnad)\s*$/i.test(r[c] || ''))) iPri = c;
+          }
+        }
+        // reserva: prioridades salvas neste navegador pelo setores (usadas só nos setores sem prioridade na planilha)
+        let locais = [];
+        try {
+          JSON.parse(localStorage.getItem('setores_v1') || '[]').forEach(d => {
+            const p = String((d && d.pri) || '').toUpperCase();
+            if (d && d.setor && (p === 'CNEFE' || p === 'PNAD')) locais.push([String(d.setor).replace(/\D/g, ''), p]);
+          });
+        } catch (e) {}
+        if (iSetor < 0 || iStatus < 0) throw new Error('Colunas Setor/Status não encontradas');
+
+        const concluidos = new Set(), riscos = new Set(), prioridades = new Map();
+        const codigosDe = s => {
+          if (setores.has(s)) return [s];
+          if (s.length <= 4) return porFinal4.get(s.padStart(4, '0')) || [];
+          return [];
+        };
+        for (const row of rows.slice(1)) {
+          const s = (row[iSetor] || '').replace(/\D/g, '');
+          if (!s) continue;
+          const ok = /^(sim|true|1|x|verdadeiro)$/i.test((row[iStatus] || '').trim());
+          if (iApm >= 0) String(row[iApm] || '').split(/[\n;]+/).map(n => n.trim()).filter(Boolean).forEach(n => servidoresPlanilha.add(n));
+          const risco = iRisco >= 0 && /^(sim|true|1|x|verdadeiro)$/i.test((row[iRisco] || '').trim());
+          if (ok) codigosDe(s).forEach(c => concluidos.add(c));
+          if (risco) codigosDe(s).forEach(c => riscos.add(c));
+          const pv = semAcento(String(iPri >= 0 ? (row[iPri] || '') : '').trim().toUpperCase());
+          const pri = pv.includes('CNEFE') ? 'CNEFE' : pv.includes('PNAD') ? 'PNAD' : '';
+          if (pri) codigosDe(s).forEach(c => prioridades.set(c, pri));
+        }
+
+        const daPlanilha = prioridades.size;
+        locais.forEach(([sd, p]) => codigosDe(sd).forEach(c => { if (!prioridades.has(c)) prioridades.set(c, p); }));
+        let nC = 0, nP = 0;
+        prioridades.forEach(p => p === 'CNEFE' ? nC++ : nP++);
+        let el = document.getElementById('diagPri');
+        if (!el) {
+          el = document.createElement('div'); el.id = 'diagPri';
+          el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:1000;background:rgba(255,255,255,.85);color:#222;font:11px Arial,sans-serif;padding:3px 7px;border-radius:4px;pointer-events:none';
+          document.body.appendChild(el);
+        }
+        el.textContent = 'Prioridades (v3): CNEFE ' + nC + ' · PNAD ' + nP + (iPri < 0 ? ' · coluna não encontrada na planilha' : daPlanilha ? '' : ' · coluna sem valores na planilha');
+        carregarServidores();
+        setores.forEach((item, codigo) => {
+          const novo = concluidos.has(codigo), novoR = riscos.has(codigo), novoP = prioridades.get(codigo) || '';
+          if (novo !== item.concluido || novoR !== item.risco || novoP !== item.pri) {
+            item.concluido = novo;
+            item.risco = novoR;
+            item.pri = novoP;
+            item.layer.setStyle(estiloDe(item));
+          }
+        });
+      } catch (e) {
+        console.warn('Status não atualizado:', e.message);
+      }
+    }
+
+    (async () => {
+      try {
+        if (!(await acessoOk)) return;   // sem login aprovado, nada é carregado
+        await carregarKMZ(ARQUIVO_KMZ);
+        $('aviso').remove();
+        await atualizarStatus();
+        await carregarMarcacoes();
+        await carregarInfos();
+        setInterval(() => { if (!document.hidden) { atualizarStatus(); carregarInfos(); gravarPendentes(); carregarMarcacoes(); } }, 30000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) { atualizarStatus(); gravarPendentes(); carregarMarcacoes(); } });
+        window.addEventListener('beforeunload', e => { if (pendentes.size) { e.preventDefault(); e.returnValue = ''; } });
+      } catch (e) {
+        console.error(e);
+        $('aviso').textContent = 'Erro ao carregar o mapa: ' + e.message;
+      }
+    })();
+  </script>
+</body>
+</html>

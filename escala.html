@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escala de Servidores</title>
+<style id="guarda-css">html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{height:100%}
+body{font:14px "Segoe UI",Arial,sans-serif;margin:0;padding:8px;height:100vh;height:100dvh;overflow:hidden;box-sizing:border-box;color:#111;text-align:center;
+  display:flex;justify-content:center;align-items:center;
+  background-color:#e6ecf3;
+  background-image:linear-gradient(rgba(255,255,255,.62),rgba(255,255,255,.62)),url('background.png');
+  background-size:100% 100%;background-position:center;background-repeat:no-repeat;background-attachment:fixed}
+.painel{background:rgba(255,255,255,.95);border-radius:8px;box-shadow:0 10px 36px rgba(0,0,0,.7);padding:12px 8px;width:100%;max-width:1800px;min-width:0;margin:0 auto;display:flex;flex-direction:column;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px)}
+button{font:inherit;cursor:pointer}
+.btn{padding:5px 14px;border:1px solid #888;background:#f2f2f2;border-radius:3px}
+.btn:hover{background:#e6e6e6}
+#st{color:#1d4e89;font-weight:600}
+a.btn{color:inherit;text-decoration:none;display:inline-block}
+.faixa{background:#1d4e89;color:#fff;border-radius:3px;padding:10px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+.fl{justify-self:start}
+.fc{min-width:0}
+.faixa .btn{color:#111;background:#fff;border-color:#888}
+.faixa .btn:hover{background:#e6e6e6}
+.tr{justify-self:end;display:flex;flex-direction:row;align-items:center;gap:10px;--qr:66px}
+.zap{display:block;width:118px;border-radius:8px;transition:transform .15s,filter .15s}
+.zap svg{display:block;width:100%;height:auto}
+.zap:hover,.qr:hover{transform:scale(1.04);filter:brightness(1.08)}
+.qr{display:block;width:var(--qr);background:#fff;border:1px solid #bbb;border-radius:4px;line-height:0;transition:transform .15s,filter .15s}
+.qr svg{display:block;width:100%;height:auto;shape-rendering:crispEdges}
+@media(max-width:820px){.faixa{grid-template-columns:1fr;justify-items:center}.fl,.tr{justify-self:center}}
+.barra{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:16px;margin-bottom:8px}
+.bag{background:#0086c3;color:#0b2545;border:1px solid #006fa3;border-radius:8px;padding:6px 14px;font-size:18px;font-weight:700;display:inline-flex;align-items:center;gap:8px}
+.bag:hover{filter:brightness(1.12)}
+.bag:focus-visible{outline:3px solid #0b2545;outline-offset:2px}
+.bag .qt{margin:0;background:rgba(255,255,255,.35);color:#0b2545;font-size:14px}
+.dias{display:flex;justify-content:center;flex-wrap:wrap;gap:6px}
+.dias button{border:1px solid #1d4e89;background:#fff;color:#1d4e89;border-radius:99px;padding:3px 14px;font-size:16px;text-transform:capitalize}
+.dias button.on{background:#1d4e89;color:#fff}
+.dias button.zero b{color:#b00020}
+.dias button.on.zero b{color:#ffd0d6}
+.hint{margin:0 0 8px;color:#555;font-size:1rem;min-height:1.2em}
+table{border-collapse:collapse;margin:0;width:auto;font-size:14px}
+/* Tabela visível: altura fixa (8 linhas); se passar disso, rola por dentro */
+.w2{flex:none;overflow:auto;margin-bottom:12px;height:260px}
+#t2{width:100%;font-size:17px}
+#t2 th{position:sticky;top:0;z-index:2;height:36px;font-size:18px}
+.qt{display:inline-block;margin-left:8px;padding:1px 10px;border-radius:99px;background:rgba(255,255,255,.22);font-size:12px;font-weight:600;vertical-align:2px}
+.cn{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cn .nm{min-width:0}
+.tag{flex:none;font-size:.68em;font-weight:700;letter-spacing:.03em;line-height:1.5;padding:0 7px;border:1px solid;border-radius:4px}
+.tag.ABT{background:#0b2545;color:#fff;border-color:#fff}
+.tag.AJA{background:#fff;color:#0b2545;border-color:#0b2545}
+.tags{flex:none;display:flex;gap:5px;align-items:center}
+.tag.fer{background:#ffd54f;color:#3b2a00;border-color:#b38600;white-space:nowrap;font-style:normal}
+#t2 td.fer{background-image:linear-gradient(rgba(255,255,255,.68),rgba(255,255,255,.68))!important}
+#t2 td.fer .nm{color:#555}
+#baixo .tag.fer{margin-left:8px;vertical-align:2px;font-size:.75em}
+#t2 th{padding:0 12px;border:0;border-left:1px solid rgba(255,255,255,.5)}
+#t2 th:first-child{border-left:0}
+#t2 td{text-align:left;height:30px;padding:0 6px;line-height:22px;white-space:normal;background:#eef1f5;border:0;border-top:1px solid #d3dae3;border-left:2px solid #9db0c6}
+#t2 td:first-child{border-left:1px solid #0b2545}
+#t2 td:last-child{border-right:1px solid #0b2545}
+#t2 tbody tr:last-child td{border-bottom:1px solid #0b2545}
+#t2 td.f{box-shadow:inset 0 0 0 2px #fff}
+#t2 td.f.fd{box-shadow:inset 0 0 0 2px #fff,inset 0 0 0 9999px rgba(255,255,255,.35)}
+#t2 select{width:100%;font:inherit;padding:0;margin:0;height:26px}
+.sw{display:inline-block;width:14px;height:14px;border-radius:2px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.3)}
+.cf{display:inline-block;margin-top:4px;font-size:.85em;white-space:nowrap}
+input[type=color]{width:34px;height:22px;padding:0;border:1px solid #888;vertical-align:middle;cursor:pointer;background:none}
+#t2 th.fd{background:#1d4e89}
+#t2 td.fd{box-shadow:inset 0 0 0 9999px rgba(255,255,255,.35)}
+
+th,td{border:1px solid #222;padding:2px 10px;vertical-align:middle;white-space:nowrap;text-align:center}
+th{background:#0b2545;color:#fff;font-weight:700;padding:5px 10px;border-color:#0b2545}
+th.s{cursor:pointer;user-select:none;position:sticky;top:25px;z-index:2}
+th.s:hover{background:#13315c}
+.t1{font-size:1.45rem;font-weight:700}
+.t2{font-size:.95rem;font-weight:700;font-style:normal;margin-top:4px}
+.t2 b{font-style:normal}
+tr.AJA td{background:#eaf3fc}
+tr.ABT td{background:#fdf1dc}
+tr.ed td{background:#fff9c4}
+tbody tr:hover td{filter:brightness(.96)}
+#baixo td:nth-child(1),#baixo td:nth-child(2){text-align:left}
+td input,td select{font:inherit;border:1px solid #999;border-radius:3px;background:#fff;padding:3px 4px;text-align:center;width:auto}
+#baixo td:nth-child(1) input,#baixo td:nth-child(2) input{text-align:left}
+td select{width:100%;color:#555;margin-top:2px}
+td input:focus,td select:focus{outline:2px solid #1d4e89}
+.b{display:flex;justify-content:center;align-items:center;gap:6px;padding:1px 2px}
+.b button{border:0;background:none;color:#b00020;font-size:1rem;line-height:1;padding:0 4px}
+#menu{position:fixed;display:none;z-index:50;background:#fff;border:1px solid #999;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.25);padding:4px;min-width:180px;text-align:left}
+#menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 12px;border-radius:4px}
+#menu button:hover{background:#e8eef7}
+#menu button.d{color:#b00020}
+/* Quadros ABT / AJA sobre a tela */
+.ov{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(10,20,40,.55)}
+.ov[hidden]{display:none!important}
+.dlgb label[hidden]{display:none}
+#ovAdd{z-index:45}
+.modal{background:#fff;border-radius:8px;box-shadow:0 12px 44px rgba(0,0,0,.55);width:min(1150px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;outline:0;text-align:left}
+.mh{background:#0086c3;color:#fff;display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:22px;font-weight:700}
+.mh .qt{font-size:14px;margin-left:0}
+.mx{margin-left:auto;border:0;background:none;color:#fff;font-size:30px;line-height:1;padding:0 8px;border-radius:4px}
+.mx:hover{background:rgba(255,255,255,.2)}
+.mb{flex:1;min-height:0;overflow:auto}
+.modal .hint{margin:0;padding:8px 16px;border-top:1px solid #d3dae3;background:#f4f7fb;text-align:center}
+#baixo table{width:100%;font-size:16px}
+#baixo th,#baixo td{padding:7px 12px}
+#baixo th.s{top:0;font-size:16px}
+.dlg{width:min(460px,94vw)}
+.dlgb{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.dlgb label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:15px}
+.dlgb input,.dlgb select{font:inherit;font-weight:400;border:1px solid #999;border-radius:4px;padding:7px 8px;width:100%;box-sizing:border-box;background:#fff}
+.dlgb input[readonly]{background:#eef1f5;color:#333;text-transform:capitalize}
+.dlgb input:focus,.dlgb select:focus{outline:2px solid #1d4e89}
+.err{color:#b00020;min-height:1.2em;font-size:14px}
+.acoes{display:flex;justify-content:flex-end;gap:8px}
+.btn.pri{background:#1d4e89;border-color:#1d4e89;color:#fff}
+.btn.pri:hover{background:#163c6b}
+.btn.pri:disabled{opacity:.6;cursor:wait}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+  html,body{height:auto}
+  body{display:block;padding:0;min-height:0;height:auto;overflow:visible;background:none!important}
+  .painel{display:block;max-height:none;background:none;box-shadow:none;padding:0;width:auto}
+  .faixa,.barra,.hint,#menu,.ov{display:none!important}
+  .w2{overflow:visible;max-height:none}
+  .w2{height:auto!important}
+  th.s,th.ti,#t2 th{position:static}
+  .painel{zoom:.65;max-width:none}
+  tbody tr:hover td{filter:none}
+}
+</style>
+</head>
+<body>
+<div class="painel">
+<div class="faixa">
+  <div class="fl"><a class="btn" id="voltar" href="index.html">← Voltar</a></div>
+  <div class="fc"><div class="t1">Escala de Servidores</div><div class="t2">BASE TERRITORIAL - ABT / AJA</div></div>
+  <div class="tr">
+  <a class="zap" href="https://chat.whatsapp.com/Fxcj72rtMYo9VmtiJw24V8" target="_blank" rel="noopener" title="Entrar no grupo do WhatsApp" aria-label="Entrar no grupo do WhatsApp">
+    <svg viewBox="0 0 138 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="135" height="61" rx="8" fill="#12401f" stroke="#2f7a45" stroke-width="3"/>
+      <g transform="translate(9 11) scale(1.15)">
+        <path d="M18 3a15 15 0 0 0-12.9 22.6L3 33l7.6-2A15 15 0 1 0 18 3z" fill="#25D366" stroke="#fff" stroke-width="1.8"/>
+        <path fill="#fff" d="M12.5 10c-.8 0-1.8.9-1.8 2.6 0 4.7 5.5 10.6 11.4 11.3 1.6 0 2.5-1 2.5-1.8l-.2-1.5-3.3-1.4-1.5 1.5c-1.7-.8-3.4-2.5-4.2-4.2l1.5-1.5-1.4-3.3z"/>
+      </g>
+      <text x="82" y="29" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="21" font-weight="700" fill="#fff" stroke="#0a2a14" stroke-width=".6">Grupo</text>
+      <text x="82" y="50" text-anchor="middle" font-family="'Segoe UI',Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">WhatsApp</text>
+    </svg>
+  </a>
+  <a class="qr" href="https://chat.whatsapp.com/Fxcj72rtMYo9VmtiJw24V8" target="_blank" rel="noopener" title="Ler o QR code ou clicar para entrar no grupo do WhatsApp" aria-label="QR code do grupo do WhatsApp"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 35 35"><path fill="#fff" d="M0 0h35v35h-35z"/><path class="qrline" stroke="#000" d="M1 1.5h7m5 0h1m3 0h1m1 0h2m1 0h3m2 0h7m-33 1h1m5 0h1m3 0h1m1 0h1m2 0h2m1 0h1m5 0h1m1 0h1m5 0h1m-33 1h1m1 0h3m1 0h1m1 0h1m2 0h2m1 0h1m6 0h1m1 0h1m2 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m1 0h1m2 0h2m2 0h1m2 0h1m4 0h1m2 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m1 0h3m2 0h5m2 0h5m1 0h1m1 0h3m1 0h1m-33 1h1m5 0h1m1 0h3m2 0h1m3 0h1m1 0h1m2 0h1m3 0h1m5 0h1m-33 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-25 1h2m6 0h1m1 0h6m-24 1h1m1 0h5m4 0h1m1 0h1m3 0h1m1 0h2m1 0h1m1 0h1m1 0h5m-30 1h2m2 0h1m3 0h1m1 0h1m1 0h2m1 0h6m1 0h2m1 0h2m1 0h4m-31 1h1m1 0h6m2 0h4m1 0h1m3 0h2m1 0h2m2 0h1m1 0h2m-31 1h1m2 0h1m2 0h1m2 0h1m1 0h2m1 0h1m1 0h2m2 0h1m4 0h1m1 0h3m1 0h1m-33 1h2m1 0h5m2 0h2m2 0h1m1 0h1m3 0h3m2 0h1m3 0h1m-29 1h1m3 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m2 0h1m3 0h2m2 0h1m2 0h4m-33 1h1m2 0h2m1 0h1m3 0h2m2 0h5m1 0h2m2 0h3m3 0h2m-32 1h1m1 0h3m3 0h1m5 0h2m5 0h1m1 0h8m-31 1h1m1 0h3m1 0h1m3 0h1m4 0h3m2 0h1m1 0h2m1 0h1m1 0h2m1 0h1m1 0h1m-33 1h1m2 0h2m2 0h3m1 0h1m1 0h2m1 0h1m1 0h4m1 0h1m2 0h2m1 0h4m-31 1h2m1 0h3m1 0h2m2 0h3m2 0h1m1 0h1m1 0h1m2 0h4m1 0h2m-31 1h1m1 0h1m3 0h1m6 0h1m1 0h1m4 0h1m2 0h2m1 0h4m1 0h1m-32 1h2m2 0h4m2 0h2m1 0h2m2 0h1m5 0h2m2 0h2m-30 1h1m2 0h1m3 0h1m2 0h1m2 0h5m2 0h3m2 0h3m1 0h1m2 0h1m-33 1h1m1 0h1m3 0h1m2 0h1m2 0h3m2 0h1m1 0h1m1 0h1m6 0h4m-32 1h1m1 0h3m2 0h4m1 0h1m1 0h1m1 0h1m2 0h4m1 0h3m1 0h3m-31 1h1m4 0h2m1 0h1m1 0h1m2 0h2m2 0h1m1 0h1m2 0h9m-23 1h2m2 0h9m1 0h1m1 0h1m3 0h1m1 0h3m-33 1h7m2 0h1m1 0h2m2 0h3m2 0h2m1 0h2m1 0h1m1 0h1m1 0h1m-31 1h1m5 0h1m1 0h1m2 0h1m2 0h1m1 0h4m1 0h1m1 0h2m3 0h5m-33 1h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m2 0h1m4 0h1m2 0h6m1 0h1m-32 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h2m1 0h1m1 0h2m2 0h1m2 0h2m2 0h1m2 0h2m-33 1h1m1 0h3m1 0h1m1 0h1m3 0h5m4 0h2m3 0h2m1 0h2m-31 1h1m5 0h1m5 0h2m1 0h1m5 0h1m3 0h1m2 0h3m-31 1h7m1 0h1m4 0h1m1 0h1m1 0h2m1 0h1m1 0h3m2 0h1m3 0h1"/></svg></a>
+  </div>
+</div>
+<div class="barra">
+  <button type="button" class="bag" id="bABT" title="IBGE - ABT">ABT <span class="qt" id="qtABT"></span></button>
+  <div class="dias" id="dias"></div>
+  <button type="button" class="bag" id="bAJA" title="IBGE - AJA">AJA <span class="qt" id="qtAJA"></span></button>
+</div>
+<p class="hint"><span id="ht"></span> <span id="st"></span></p>
+<div class="w2" id="w2">
+<table id="t2">
+<thead>
+<tr id="h2"></tr>
+</thead>
+<tbody id="tb2"></tbody>
+</table>
+</div>
+</div>
+<!-- Quadro ABT/AJA: oculto até clicar no botão da agência -->
+<div class="ov" id="ov" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mt" tabindex="-1">
+    <div class="mh"><span id="mt"></span><span class="qt" id="mq"></span><button type="button" class="mx" id="mx" title="Fechar" aria-label="Fechar">×</button></div>
+    <div class="mb"><div id="baixo"><table><thead><tr><th class="s" data-c="nome" data-l="Servidor">Servidor</th><th class="s" data-c="email" data-l="e-mail">e-mail</th><th class="s" data-c="contato" data-l="Contato">Contato</th><th class="s" data-c="siape" data-l="SIAPE">SIAPE</th></tr></thead><tbody id="tbM"></tbody></table></div></div>
+    <p class="hint" id="mdica"></p>
+  </div>
+</div>
+<!-- Incluir servidor (nome + agência) -->
+<div class="ov" id="ovAdd" hidden>
+  <div class="modal dlg" role="dialog" aria-modal="true" aria-labelledby="addT">
+    <div class="mh"><span id="addT">Adicionar servidor</span><button type="button" class="mx" id="addX" title="Fechar" aria-label="Fechar">×</button></div>
+    <div class="dlgb">
+      <label>Dia<input id="addDia" readonly></label>
+      <label>Nome do servidor<input id="addNome" maxlength="80" autocomplete="off"></label>
+      <label>Agência<select id="addAg"><option value="">— selecione —</option><option value="ABT">ABT</option><option value="AJA">AJA</option></select></label>
+      <div class="err" id="addErr" role="alert"></div>
+      <div class="acoes"><button type="button" class="btn" id="addCan">Cancelar</button><button type="button" class="btn pri" id="addOk">Incluir</button></div>
+    </div>
+  </div>
+</div>
+<!-- Senha de edição -->
+<div class="ov" id="ovSen" hidden style="z-index:60">
+  <div class="modal dlg" role="dialog" aria-modal="true" aria-labelledby="senT">
+    <div class="mh"><span id="senT">Senha de edição</span><button type="button" class="mx" id="senX" title="Fechar" aria-label="Fechar">×</button></div>
+    <div class="dlgb">
+      <label id="lbAtual"><span id="lbAtualT">Senha</span><input id="senAtual" type="password" autocomplete="off"></label>
+      <label id="lbNova" hidden>Nova senha<input id="senNova" type="password" autocomplete="off"></label>
+      <label id="lbConf" hidden>Repita a nova senha<input id="senConf" type="password" autocomplete="off"></label>
+      <div class="err" id="senErr" role="alert"></div>
+      <div class="acoes"><button type="button" class="btn" id="senCan">Cancelar</button><button type="button" class="btn pri" id="senOk">Confirmar</button></div>
+    </div>
+  </div>
+</div>
+<div id="menu"></div>
+
+<script>
+const sb=supabase.createClient('https://rdxklpkukmuwwetftqde.supabase.co','sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16');
+const noGit=location.hostname.endsWith("github.io");
+const DIAS=["segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira"];
+const PAL=["#e377c2","#2e7d32","#f5b301","#1f77b4","#7cb342","#e8702a","#5b2a6e","#0ea5e9","#f4a582","#7b3fa0","#17806d","#c0392b","#7f8c8d","#8d6e63","#3949ab"];
+const txt=c=>{const n=parseInt(c.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;return(r*299+g*587+b*114)/1000>150?"#111":"#fff"};
+const uid=()=>Math.random().toString(36).slice(2);
+const P=(ag,nome,email,siape,dia)=>({id:uid(),ag,nome,email,siape,dias:[dia]});
+const SEED=[
+["AJA","Adriana Costa Braz dos Santos","adriana.braz@ibge.gov.br","3471919","terça-feira"],
+["AJA","Arthur Louzada de Souza","arthur.souza@ibge.gov.br","3476717","quarta-feira"],
+["AJA","Fabio Pereira Silva","fabio.pereira@ibge.gov.br","3451876","quarta-feira"],
+["AJA","Gabriel Finotti dos Reis Nunes","gabriel-finotti.reis@ibge.gov.br","3373216","sexta-feira"],
+["AJA","Hugo de Mello Sampaio","hugo.mello@ibge.gov.br","3476720","segunda-feira"],
+["AJA","Iuri George da Silva Palmeira","iuri.palmeira@ibge.gov.br","2157841","sexta-feira"],
+["AJA","Lucas Mucuri Ramos","lucas.mucuri@ibge.gov.br","3469134","sexta-feira"],
+["AJA","Maury Fadel Goncalves","maury.goncalves@ibge.gov.br","3408075","segunda-feira"],
+["AJA","Paulo Felipe Ferreira Tavares","paulo-felipe.tavares@ibge.gov.br","3495437","quinta-feira"],
+["AJA","Romenig Oliveira Candido","romenig.candido@ibge.gov.br","3392136","quarta-feira"],
+["ABT","Guilherme Silva Xavier de Souza","guilherme.xavier@ibge.gov.br","1100687","terça-feira"],
+["ABT","Icaro Leandro Costa dos Santos Teixeira","icaro.teixeira@ibge.gov.br","3452834","terça-feira"],
+["ABT","Joao Gabriel Martins da Cruz Moraes","joao.moraes@ibge.gov.br","3505895","terça-feira"]];
+
+let apms=[],editId=null,agAberta=null,addD="",podeEditar=false,senhaEd="",modoLocal=false,versao=null,meta={},usuario="",filtroDia="",ord={c:"",d:1},fila=Promise.resolve();
+const novos=new Set();let LV=[];
+const $=id=>document.getElementById(id),tb=$("baixo"),menu=$("menu");
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const opts=(arr,cur)=>arr.map(v=>`<option${v===cur?" selected":""}>${esc(v)}</option>`).join("");
+const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+const fone=v=>{const d=String(v||"").replace(/\D/g,"").slice(0,11);if(!d)return"";let t="("+d.slice(0,2);if(d.length>2)t+=") "+d.slice(2,7);if(d.length>7)t+="-"+d.slice(7);return t};
+const sz=v=>Math.max(8,String(v||"").length+1);
+const ordem=l=>[...l].sort((x,y)=>DIAS.indexOf(x)-DIAS.indexOf(y));
+const st=t=>$("st").textContent=t;
+const normaliza=l=>{const r=(Array.isArray(l)?l:[]).map(a=>({id:a.id||uid(),ag:a.ag==="ABT"?"ABT":"AJA",nome:a.nome||"",email:a.email||"",contato:fone(a.contato),siape:String(a.siape||""),dias:ordem(Array.isArray(a.dias)?a.dias:(a.dia?[a.dia]:[])),cor:/^#[0-9a-f]{6}$/i.test(a.cor||"")?a.cor.toLowerCase():"",...(a.ferias===true?{ferias:true}:{})}));
+  const us=new Set(r.map(x=>x.cor).filter(Boolean));r.forEach((x,i)=>{if(!x.cor){const c=corLivre(us);x.cor=c;us.add(c)}});return r};
+const hsl2hex=(h,s,l)=>{s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return"#"+[f(0),f(8),f(4)].map(x=>Math.round(x*255).toString(16).padStart(2,"0")).join("")};
+const corLivre=us=>{const c=PAL.find(p=>!us.has(p));if(c)return c;for(let i=0;i<720;i++){const x=hsl2hex((i*137.5)%360,60,45);if(!us.has(x))return x}return PAL[0]};
+const corNova=()=>corLivre(new Set(apms.map(a=>a.cor)));
+function semente(){try{const l=JSON.parse(localStorage.getItem("escala_v3"));if(Array.isArray(l)&&l.length)return normaliza(l)}catch(e){}return normaliza(SEED.map(r=>P(...r)))}
+
+/* Dados no Supabase */
+async function carregar(){
+  const{data,error}=await sb.from("escala").select("dados,atualizado_em,atualizado_por").eq("id",1).maybeSingle();
+  if(error){st("Erro ao carregar");return}
+  if(data){apms=normaliza(data.dados);versao=data.atualizado_em;meta=data}else{apms=[];versao=null;meta={}}
+  render();
+}
+async function _salvar(){
+  if(!podeEditar||!senhaEd)return false;
+  st("Salvando…");
+  const r=await sb.rpc("escala_gravar",{p_senha:senhaEd,p_dados:apms,p_versao:versao});
+  if(r.error||!r.data){
+    let m;
+    if(r.error&&/SENHA_INCORRETA/.test(r.error.message)){senhaEd="";m="A senha de edição foi alterada. Clique com o botão direito e digite a nova senha."}
+    else if(r.error)m="Não foi possível salvar: "+r.error.message;
+    else m="Outra pessoa alterou a escala enquanto você editava. Vou recarregar a versão mais recente; refaça a sua alteração.";
+    alert(m);editId=null;await carregar();st("");return false;
+  }
+  versao=r.data.atualizado_em;meta=r.data;st("Salvo");setTimeout(()=>st(""),1500);return true;
+}
+const salvar=()=>fila=fila.then(_salvar);
+
+/* Filtros, ordenação e tela */
+function ordenados(l){
+  const c=ord.c||"nome",v=a=>norm(a[c]);
+  return [...l].sort((x,y)=>{const A=v(x),B=v(y);let r=A<B?-1:A>B?1:0;if(ord.c)r*=ord.d;return r||x.nome.localeCompare(y.nome,"pt")});
+}
+function render(){
+  const ag=agAberta,L=ag?ordenados(apms.filter(a=>a.ag===ag)):[];
+  const linha=a=>{
+    const ed=a.id===editId;
+    const cell=(f,v)=>ed?`<input data-f="${f}" size="${sz(v)}" value="${esc(v)}">`:esc(v);
+    return`<tr class="${a.ag}${ed?" ed":""}" data-id="${a.id}">
+<td>${ed?`${cell("nome",a.nome)}<br><label class="cf">Agência <select data-f="ag" style="margin:0;width:auto">${opts(["AJA","ABT"],a.ag)}</select></label> <label class="cf">Cor de fundo <input type="color" data-f="cor" value="${a.cor}"></label>`:`<span class="sw" style="background:${a.cor}"></span>${esc(a.nome)}${a.ferias?'<span class="tag fer">🌴 Férias</span>':""}`}</td><td>${cell("email",a.email)}</td><td>${ed?`<input data-f="contato" inputmode="tel" maxlength="15" size="16" placeholder="(##) #####-####" value="${esc(a.contato)}">`:esc(a.contato)}</td><td>${cell("siape",a.siape)}</td></tr>`};
+  const cont=g=>{const t=apms.filter(a=>a.ag===g).length;return t+(t===1?" servidor":" servidores")};
+  $("qtABT").textContent=cont("ABT");$("qtAJA").textContent=cont("AJA");
+  $("ov").hidden=!ag;
+  if(ag){$("mt").textContent="IBGE - "+ag;$("mq").textContent=cont(ag);
+    $("tbM").innerHTML=L.length?L.map(linha).join(""):`<tr><td colspan="4">Nenhum servidor cadastrado na ${ag}.</td></tr>`}
+  $("dias").innerHTML=DIAS.map(d=>{const n=apms.filter(a=>a.dias.includes(d)).length;
+    return`<button data-d="${d}" class="${filtroDia===d?"on":""}${n?"":" zero"}" title="Destacar a coluna deste dia">${d.split("-")[0]} <b>${n}</b></button>`}).join("");
+  document.querySelectorAll("th.s").forEach(th=>th.textContent=th.dataset.l+(ord.c===th.dataset.c?(ord.d>0?" ▲":" ▼"):""));
+  const a=apms.find(x=>x.id===editId);
+  $("ht").textContent=$("mdica").textContent=a?`Editando ${a.nome||"novo servidor"}. Clique fora da linha ou pressione Esc para concluir.`
+    :modoLocal?"Modo local sem login: somente leitura."
+    :podeEditar?"Clique com o botão direito do mouse para editar."
+    :"Somente leitura: sua conta não tem permissão para editar a escala.";
+  render2();ajusta();
+}
+/* Tabela visível: quadro semanal com o nome e a agência de cada servidor. Os dados completos ficam nos quadros ABT/AJA */
+const porAg=l=>[...l].sort((x,y)=>x.ag.localeCompare(y.ag)||x.nome.localeCompare(y.nome,"pt"));
+function render2(){
+  const A=porAg(apms),col=DIAS.map(d=>A.filter(a=>a.dias.includes(d)));
+  const n=Math.max(8,...col.map(c=>c.length));
+  $("h2").innerHTML=DIAS.map(d=>`<th${filtroDia===d?' class="fd"':""}>${d}</th>`).join("");
+  let h="";
+  for(let i=0;i<n;i++)h+="<tr>"+DIAS.map((d,j)=>{const a=col[j][i];
+    return`<td data-d="${d}" data-i="${i}"${a?` data-id="${a.id}"`:""} class="${a?"f ":""}${a&&a.ferias?"fer ":""}${filtroDia===d?"fd":""}"${a?` style="background:${a.cor};color:${txt(a.cor)}"`:""}>${a?`<div class="cn"><span class="nm">${esc(a.nome||"(sem nome)")}</span><span class="tags">${a.ferias?'<span class="tag fer">🌴 Férias</span>':""}<span class="tag ${a.ag}">${a.ag}</span></span></div>`:""}</td>`}).join("")+"</tr>";
+  $("tb2").innerHTML=h;
+}
+/* Transforma a célula da tabela superior numa lista com todos os servidores */
+function escolher(td){
+  const d=td.dataset.d,atual=td.dataset.id||"";
+  const op=porAg(apms).filter(a=>a.id===atual||!a.dias.includes(d));
+  td.innerHTML=`<select class="pick" data-d="${d}" data-old="${atual}"><option value="">${atual?"(remover deste dia)":"— escolher servidor —"}</option>${op.map(a=>`<option value="${a.id}"${a.id===atual?" selected":""}>${esc(a.nome||"(sem nome)")} (${a.ag})${a.ferias?" – férias":""}</option>`).join("")}</select>`;
+  const sl=td.firstChild;sl.focus();try{sl.showPicker()}catch(e){}
+}
+$("tb2").addEventListener("change",async e=>{
+  const sl=e.target;if(!sl.classList.contains("pick"))return;
+  const d=sl.dataset.d,old=sl.dataset.old,nv=sl.value;
+  if(nv===old){render2();return}
+  const ao=apms.find(a=>a.id===old),an=apms.find(a=>a.id===nv);
+  if(ao)ao.dias=ao.dias.filter(x=>x!==d);
+  if(an&&!an.dias.includes(d))an.dias=ordem([...an.dias,d]);
+  await salvar();render();
+});
+$("tb2").addEventListener("focusout",e=>{const sl=e.target;if(sl.classList&&sl.classList.contains("pick")&&sl.value===sl.dataset.old)render2()});
+/* Tabela superior com tamanho fixo: cabeçalho + 8 linhas (acima disso, rola por dentro) */
+function ajusta(){
+  const w=$("w2"),r=$("tb2").rows[0];if(!r)return;
+  w.style.height=($("t2").tHead.offsetHeight+r.offsetHeight*8+1)+"px";
+}
+addEventListener("resize",ajusta);
+$("dias").onclick=e=>{const b=e.target.closest("button");if(!b)return;filtroDia=filtroDia===b.dataset.d?"":b.dataset.d;render()};
+tb.addEventListener("click",e=>{const th=e.target.closest("th.s");if(!th)return;const c=th.dataset.c;
+  if(ord.c!==c)ord={c,d:1};else if(ord.d===1)ord.d=-1;else ord={c:"",d:1};render()});
+
+/* Edição (só pelo botão direito, só para editores) */
+async function endEdit(){
+  if(!editId)return;
+  const a=apms.find(x=>x.id===editId),id=editId;editId=null;
+  if(a&&!a.nome&&!a.email&&!a.contato&&!a.siape){apms=apms.filter(x=>x!==a);if(!novos.has(id))await salvar()}
+  novos.delete(id);render();
+}
+function abrir(id){const a=apms.find(x=>x.id===id);if(a)agAberta=a.ag;editId=id;render();const i=tb.querySelector("tr.ed input[data-f=nome]");if(i)i.focus()}
+const find=el=>apms.find(a=>a.id===el.closest("tr").dataset.id);
+tb.addEventListener("input",e=>{const t=e.target;if(t.tagName!=="INPUT"||t.type==="color")return;if(t.dataset.f==="contato"){t.value=fone(t.value);return}t.size=sz(t.value)});
+tb.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"){e.target.blur();endEdit()}});
+tb.addEventListener("change",async e=>{
+  const f=e.target.dataset.f;if(!f)return;const a=find(e.target),v=e.target.value;
+  if(f==="contato"){const d=v.replace(/\D/g,"");if(d.length&&d.length!==11){alert("Informe o telefone completo no formato (##) #####-####, somente números.");e.target.value=a.contato;return}a.contato=fone(v)}
+  else if(f==="cor"){const c=v.toLowerCase(),dup=apms.find(x=>x!==a&&x.cor===c);if(dup){alert("Essa cor já é usada por "+(dup.nome||"outro servidor")+". Escolha outra.");e.target.value=a.cor;return}a.cor=c}
+  else a[f]=v.trim();
+  if(await salvar())novos.delete(a.id);
+  if(f==="ag"){const n=apms.find(x=>x.id===a.id);if(n)agAberta=n.ag;render()}else{render2();ajusta()}
+});
+/* Quadros ABT / AJA: ocultos até clicar no botão da agência */
+let btnOrigem=null;
+function abreModal(ag,btn){btnOrigem=btn||btnOrigem;agAberta=ag;render();$("modal").focus()}
+async function fecharModal(){
+  await endEdit();agAberta=null;render();
+  if(btnOrigem){btnOrigem.focus();btnOrigem=null}
+}
+$("bABT").onclick=e=>abreModal("ABT",e.currentTarget);
+$("bAJA").onclick=e=>abreModal("AJA",e.currentTarget);
+$("mx").onclick=fecharModal;
+$("ov").addEventListener("mousedown",e=>{if(e.target===$("ov"))fecharModal()});
+
+/* Incluir servidor pela tabela visível: nome + agência (o dia vem da célula clicada) */
+const ovAdd=$("ovAdd"),addErr=m=>{$("addErr").textContent=m||""};
+function abreAdd(d){addD=d;$("addDia").value=d;$("addNome").value="";$("addAg").value="";addErr("");ovAdd.hidden=false;$("addNome").focus()}
+function fechaAdd(){ovAdd.hidden=true;addD=""}
+async function incluir(){
+  const nome=$("addNome").value.trim().replace(/\s+/g," "),ag=$("addAg").value;
+  if(!nome){addErr("Informe o nome do servidor.");return}
+  if(!ag){addErr("Selecione a agência (ABT ou AJA).");return}
+  $("addOk").disabled=true;
+  await endEdit();await carregar();
+  const dup=apms.find(a=>norm(a.nome)===norm(nome));
+  if(dup){$("addOk").disabled=false;addErr(`Já existe "${dup.nome}" (${dup.ag}). Use "Escolher servidor para ${addD}" no menu do botão direito.`);return}
+  apms.push({id:uid(),ag,nome,email:"",contato:"",siape:"",dias:[addD],cor:corNova()});
+  await salvar();render();
+  $("addOk").disabled=false;fechaAdd();
+}
+$("addOk").onclick=incluir;$("addCan").onclick=fechaAdd;$("addX").onclick=fechaAdd;
+ovAdd.addEventListener("mousedown",e=>{if(e.target===ovAdd)fechaAdd()});
+ovAdd.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName!=="BUTTON"){e.preventDefault();incluir()}});
+
+/* Senha de edição: pedida uma vez ao abrir a página; a senha fica guardada no Supabase (igual em qualquer computador) */
+const ovSen=$("ovSen"),senErr=m=>{$("senErr").textContent=m||""};
+let senRes=null;
+function dialogoSenha(modo){
+  return new Promise(res=>{
+    const troca=modo==="troca";
+    $("senT").textContent=troca?"Alterar senha":"Senha de edição";
+    $("lbAtualT").textContent=troca?"Senha atual":"Senha";
+    $("lbNova").hidden=$("lbConf").hidden=!troca;
+    ["senAtual","senNova","senConf"].forEach(i=>$(i).value="");senErr("");
+    $("senOk").disabled=false;ovSen.hidden=false;ovSen.dataset.modo=modo;$("senAtual").focus();
+    senRes=res;
+  });
+}
+function fechaSen(v){ovSen.hidden=true;if(senRes){const r=senRes;senRes=null;r(v)}}
+async function confirmaSen(){
+  const modo=ovSen.dataset.modo,atual=$("senAtual").value;
+  if(!atual){senErr("Digite a senha.");return}
+  $("senOk").disabled=true;senErr("");
+  if(modo==="troca"){
+    const n=$("senNova").value;
+    if(n.length<4){senErr("A nova senha deve ter pelo menos 4 caracteres.");$("senOk").disabled=false;return}
+    if(n!==$("senConf").value){senErr("A confirmação não confere com a nova senha.");$("senOk").disabled=false;return}
+    const{data,error}=await sb.rpc("escala_trocar_senha",{p_atual:atual,p_nova:n});
+    if(error||data!==true){senErr(error&&!/SENHA_INCORRETA/.test(error.message)?"Erro: "+error.message:"Senha atual incorreta.");$("senOk").disabled=false;return}
+    senhaEd=n;fechaSen(true);alert("Senha alterada. A nova senha vale em qualquer computador.");return;
+  }
+  const{data,error}=await sb.rpc("escala_senha_ok",{p_senha:atual});
+  if(error){senErr("Erro: "+error.message);$("senOk").disabled=false;return}
+  if(data!==true){senErr("Senha incorreta.");$("senOk").disabled=false;$("senAtual").select();return}
+  senhaEd=atual;fechaSen(true);
+}
+$("senOk").onclick=confirmaSen;$("senCan").onclick=$("senX").onclick=()=>fechaSen(false);
+ovSen.addEventListener("mousedown",e=>{if(e.target===ovSen)fechaSen(false)});
+ovSen.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();confirmaSen()}else if(e.key==="Escape"){e.stopPropagation();fechaSen(false)}});
+const pedeSenha=async()=>senhaEd?true:dialogoSenha("entrar");
+
+/* Menu do botão direito: tabela visível e quadros ABT/AJA (exige a senha de edição) */
+function mostraMenu(x,y,cel,lin,mod){
+  let h="",id="";
+  if(cel){
+    id=cel.dataset.id||"";const d=cel.dataset.d;
+    h=`<button data-act="pick" data-d="${d}" data-i="${cel.dataset.i}">Escolher servidor para ${d}</button><button data-act="addnew" data-d="${d}">Adicionar servidor em ${d}</button>`+(id?`<button class="d" data-act="rmdia" data-id="${id}" data-d="${d}">Remover da ${d}</button>`:"");
+  }else id=lin?lin.dataset.id:"";
+  if(id){const f=apms.find(x=>x.id===id);h+=`<button data-act="ferias" data-id="${id}" data-v="${f&&f.ferias?0:1}">${f&&f.ferias?"Remover férias":"Marcar férias"}</button>`}
+  if(id)h+=`<button data-act="edit" data-id="${id}">Editar servidor</button><button class="d" data-act="del" data-id="${id}">Excluir servidor</button>`;
+  if(mod)h+=`<button data-act="add" data-ag="${agAberta}">Adicionar servidor na ${agAberta}</button>`;
+  h+=`<button data-act="senha">Alterar senha</button>`;
+  menu.innerHTML=h;
+  menu.style.display="block";
+  menu.style.left=Math.min(x,innerWidth-menu.offsetWidth-8)+"px";
+  menu.style.top=Math.min(y,innerHeight-menu.offsetHeight-8)+"px";
+}
+document.addEventListener("contextmenu",async e=>{
+  if(!podeEditar)return;
+  const cel=e.target.closest("#t2 td[data-d]"),lin=e.target.closest("#baixo tr[data-id]"),mod=e.target.closest("#modal");
+  if(!cel&&!mod)return;
+  e.preventDefault();
+  const x=e.clientX,y=e.clientY;
+  if(!senhaEd&&!await pedeSenha())return;
+  mostraMenu(x,y,cel,lin,mod);
+});
+menu.addEventListener("click",async e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const act=b.dataset.act,id=b.dataset.id;menu.style.display="none";
+  await endEdit();
+  if(act==="senha"){await dialogoSenha("troca");return}
+  if(act==="addnew"){abreAdd(b.dataset.d);return}
+  await carregar();
+  if(act==="edit"){if(apms.some(x=>x.id===id))abrir(id)}
+  else if(act==="del"){const a=apms.find(x=>x.id===id);
+    if(a&&confirm("Excluir "+(a.nome||"este servidor")+" da escala?")){apms=apms.filter(x=>x!==a);await salvar();render()}}
+  else if(act==="ferias"){const a=apms.find(x=>x.id===id);
+    if(a){if(b.dataset.v==="1")a.ferias=true;else delete a.ferias;await salvar();render()}}
+  else if(act==="rmdia"){const a=apms.find(x=>x.id===id),d=b.dataset.d;
+    if(a&&d){a.dias=a.dias.filter(x=>x!==d);await salvar();render()}}
+  else if(act==="pick"){const td=$("tb2").querySelector(`td[data-d="${b.dataset.d}"][data-i="${b.dataset.i}"]`);if(td)escolher(td)}
+  else if(act==="add"){const n={id:uid(),ag:b.dataset.ag==="ABT"?"ABT":"AJA",nome:"",email:"",contato:"",siape:"",dias:[],cor:corNova()};apms.push(n);novos.add(n.id);abrir(n.id)}
+});
+document.addEventListener("click",e=>{
+  if(!e.target.closest("#menu"))menu.style.display="none";
+  if(editId&&!e.target.closest("tr.ed")&&!e.target.closest("#menu"))endEdit();
+});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
+  if(!ovSen.hidden){fechaSen(false);return}
+  if(!ovAdd.hidden){fechaAdd();return}
+  if(menu.style.display==="block"){menu.style.display="none";return}
+  if(editId){endEdit();return}
+  if(agAberta){fecharModal();return}
+  render2();
+});
+addEventListener("scroll",()=>menu.style.display="none",true);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!editId&&!modoLocal)carregar()});
+
+/* Voltar: retorna à página que já estava aberta (não abre outra cópia) */
+$("voltar").addEventListener("click",e=>{
+  e.preventDefault();
+  if(history.length>1){history.back();return}
+  window.close();
+  setTimeout(()=>{let r="";try{const u=new URL(document.referrer);if(u.origin===location.origin)r=u.href}catch(_){}location.href=r||"index.html"},400);
+});
+
+/* Início: login obrigatório, permissões e dados */
+(async()=>{
+  const liberar=()=>{const g=$("guarda-css");if(g)g.remove()};
+  try{
+    const{data:{session}}=await sb.auth.getSession();
+    if(!session){
+      if(noGit)return location.replace("index.html");
+      modoLocal=true;apms=semente();liberar();render();return;
+    }
+    const{data:p}=await sb.from("perfis").select("aprovado").eq("id",session.user.id).maybeSingle();
+    if(!p||p.aprovado!==true)return location.replace("index.html");
+    usuario=session.user.email||"";
+    podeEditar=true;
+    await carregar();
+    if(versao===null){apms=semente();render()}
+    liberar();render();
+  }catch(e){liberar();st("Erro de conexão");render()}
+})();
+</script>
+</body>
+</html>
