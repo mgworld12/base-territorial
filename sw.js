@@ -1,6 +1,6 @@
 // Service worker - Base Territorial
 // Aumente a VERSAO a cada atualização do site para forçar os aparelhos a baixarem os arquivos novos.
-const VERSAO = 'bt-v1';
+const VERSAO = 'bt-v2';
 const ARQUIVOS = [
   './', 'index.html', 'setoresABT.html', 'setoresAJA.html', 'previsao.html', 'escala.html',
   'mapaABT.html', 'mapaAJA.html', 'background.png', 'favicon.ico',
