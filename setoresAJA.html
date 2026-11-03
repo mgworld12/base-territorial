@@ -129,6 +129,18 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 @media(max-width:560px){.grid{grid-template-columns:1fr}}
 @media print{@page{size:landscape;margin:10mm}body.pr>*:not(#rd){display:none!important}body.pr #rd{position:static;width:auto;max-height:none;overflow:visible;border:0;color:#000;background:#fff}body.pr .wrap2{max-height:none;overflow:visible}.noprint{display:none!important}body.pp>*:not(#pd){display:none!important}body.pp #pd{position:static;width:auto;max-height:none;overflow:visible;border:0;margin:0;color:#000;background:#fff}body.pp .wrap2{max-height:none;overflow:visible}#pt table{font-size:10px}}
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a8a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Base Territorial">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
 </head>
 <body>
 <header>

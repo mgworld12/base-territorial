@@ -99,6 +99,19 @@
     #map.modo-selecao .leaflet-interactive { cursor: pointer; }
     @media (max-width: 600px) { #busca { top: 58px; left: 10px; } #selecao { top: 106px; right: auto; left: 10px; } }
   </style>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a8a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Base Territorial">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
 </head>
 <body>
 
