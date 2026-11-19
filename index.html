@@ -4,25 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <style id="guarda-css">html{visibility:hidden}</style>
     
-    <!-- SDK Oficial do Supabase -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <script>
-    (async function () {
-      const css = document.getElementById('guarda-css');
-
-      // Se não estiver no GitHub Pages, remove o bloqueio e permite acesso local/desenvolvimento
-      if (!location.hostname.endsWith('github.io')) { 
-        if (css) css.remove(); 
-        return; 
-      }
-
-      // Em index.html (página de login), apenas liberamos a visibilidade da página
-      if (css) css.remove();
-    })();
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
+    <script src="config.js"></script>
+    <script src="comum.js"></script>
 
     <title>Acesso ao Sistema - Base Territorial</title>
     
@@ -212,16 +197,7 @@
 </div>
 
 <script>
-    // =========================================================================
-    // CONFIGURAÇÃO DO SUPABASE (BASE_TERRITORIAL_2026)
-    // =========================================================================
-    const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16';
-
-    // Domínio de e-mail aceito (somente IBGE)
-    const DOMINIO_PERMITIDO = '@ibge.gov.br';
-
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const DOMINIO_PERMITIDO = CFG.DOMINIO; // somente e-mails do IBGE
 
     function mostrarSessao(idSessao) {
         document.querySelectorAll('.form-section').forEach(el => el.classList.remove('active'));
@@ -234,16 +210,6 @@
         el.className = 'msg msg-' + tipo;
         el.innerText = texto;
         el.style.display = 'block';
-    }
-
-    async function contaAprovada(userId) {
-        const { data, error } = await _supabase
-            .from('perfis')
-            .select('aprovado')
-            .eq('id', userId)
-            .maybeSingle();
-        if (error) return null;
-        return data ? data.aprovado === true : false;
     }
 
     // Se o usuário já estiver logado e aprovado, mostra direto a escolha de página

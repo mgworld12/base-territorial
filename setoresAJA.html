@@ -6,40 +6,12 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <title>Setores Ordenados - AJA</title>
 
-<!-- SDK Oficial do Supabase e Proteção de Acesso -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style id="guarda-css">html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
+<script src="config.js"></script>
+<script src="comum.js"></script>
 <script src="senha-acao.js"></script>
-<script>
-    const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16'; // Substitua pela sua chave anon public
-
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    async function contaAprovada(userId) {
-        const { data, error } = await _supabase
-            .from('perfis')
-            .select('aprovado')
-            .eq('id', userId)
-            .maybeSingle();
-        if (error) return false;
-        return data ? data.aprovado === true : false;
-    }
-
-    (async function protegerPagina() {
-        const { data: { session } } = await _supabase.auth.getSession();
-        
-        if (!session) {
-            window.location.replace('index.html');
-            return;
-        }
-
-        const aprovado = await contaAprovada(session.user.id);
-        if (!aprovado) {
-            await _supabase.auth.signOut();
-            window.location.replace('index.html');
-        }
-    })();
-</script>
+<script>exigirAcesso();</script>
 
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);

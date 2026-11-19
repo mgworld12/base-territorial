@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Escala de Servidores</title>
 <style id="guarda-css">html{visibility:hidden}</style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
+<script src="config.js"></script>
+<script src="comum.js"></script>
 <style>
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{height:100%}
@@ -135,19 +137,6 @@ td input:focus,td select:focus{outline:2px solid #1d4e89}
   tbody tr:hover td{filter:none}
 }
 </style>
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e3a8a">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Base Territorial">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
-</script>
 </head>
 <body>
 <div class="painel">
@@ -221,7 +210,7 @@ if ('serviceWorker' in navigator) {
 <div id="menu"></div>
 
 <script>
-const sb=supabase.createClient('https://rdxklpkukmuwwetftqde.supabase.co','sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16');
+const sb=_supabase;
 const noGit=location.hostname.endsWith("github.io");
 const DIAS=["segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira"];
 const PAL=["#e377c2","#2e7d32","#f5b301","#1f77b4","#7cb342","#e8702a","#5b2a6e","#0ea5e9","#f4a582","#7b3fa0","#17806d","#c0392b","#7f8c8d","#8d6e63","#3949ab"];

@@ -5,36 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mapa de Setores - AJA</title>
 
-  <!-- Proteção de acesso: exige login feito no index.html -->
-  <style>html { visibility: hidden; }</style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style id="guarda-css">html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
+<script src="config.js"></script>
+<script src="comum.js"></script>
 <script src="senha-acao.js"></script>
-  <script>
-    const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16';
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // Resolve true se o usuário está logado e aprovado; senão manda para o index.html
-    const acessoOk = (async () => {
-      try {
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) { window.location.replace('index.html'); return false; }
-
-        const { data, error } = await _supabase
-          .from('perfis').select('aprovado').eq('id', session.user.id).maybeSingle();
-        if (error || !data || data.aprovado !== true) {
-          await _supabase.auth.signOut();
-          window.location.replace('index.html');
-          return false;
-        }
-        document.documentElement.style.visibility = 'visible';
-        return true;
-      } catch (e) {
-        window.location.replace('index.html');
-        return false;
-      }
-    })();
-  </script>
+<script>const acessoOk = exigirAcesso();</script>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 

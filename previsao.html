@@ -6,29 +6,13 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <title>Previsão de finalização - Base Territorial</title>
 
-<!-- SDK Oficial do Supabase e Proteção de Acesso (mesmo padrão de setoresABT/AJA) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-    const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16';
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    async function contaAprovada(userId) {
-        const { data, error } = await _supabase.from('perfis').select('aprovado').eq('id', userId).maybeSingle();
-        if (error) return false;
-        return data ? data.aprovado === true : false;
-    }
-
-    (async function protegerPagina() {
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) { window.location.replace('index.html'); return; }
-        const aprovado = await contaAprovada(session.user.id);
-        if (!aprovado) {
-            await _supabase.auth.signOut();
-            window.location.replace('index.html');
-        }
-    })();
-</script>
+<style id="guarda-css">html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
+<script src="config.js"></script>
+<script src="comum.js"></script>
+<script src="senha-acao.js"></script>
+<script>exigirAcesso();</script>
+<script src="feriados.js"></script>
 
 <style>
 :root {
@@ -73,6 +57,8 @@ h1 { color: var(--primary); text-align: center; margin: 10px 0 6px; }
 .results div:last-child { margin-bottom: 0; }
 .highlight { font-weight: bold; color: var(--accent); }
 .highlight .mes { font-weight: normal; font-size: 0.8rem; color: var(--mut); margin-left: 4px; }
+.opcoes { margin-top: 18px; display: grid; gap: 8px; font-size: 0.9rem; }
+.opcoes details { color: var(--mut); } .opcoes ul { margin: 8px 0 0; padding-left: 20px; }
 .nota { color: var(--mut); font-size: 0.8rem; text-align: center; margin-top: 20px; }
 </style>
 </head>
@@ -88,12 +74,18 @@ h1 { color: var(--primary); text-align: center; margin: 10px 0 6px; }
 
     <div class="grid" id="grid"></div>
 
-    <p class="nota">A previsão conta apenas dias úteis (segunda a sexta), a partir de hoje, e não desconta feriados.</p>
+    <div class="opcoes">
+        <label><input type="checkbox" id="rio" checked> Descontar feriados do Rio de Janeiro (cidade e estado)</label>
+        <label><input type="checkbox" id="fac" checked> Descontar pontos facultativos federais (Carnaval, Corpus Christi, Dia do Servidor…)</label>
+        <details><summary id="fer-resumo">Feriados e pontos facultativos até a data prevista</summary><ul id="fer-lista"></ul></details>
+    </div>
+
+    <p class="nota">A previsão conta apenas dias úteis (segunda a sexta), a partir de hoje, descontando os feriados nacionais e, conforme as caixas acima, os do Rio de Janeiro e os pontos facultativos federais (2026: Portaria MGI nº 11.460/2025).</p>
     <p class="nota" id="status-cfg" style="margin-top:6px"></p>
 </div>
 
 <script>
-// Mesmas planilhas lidas por setoresABT.html e setoresAJA.html
+// Planilha lida também pelo setoresAJA.html
 const AGENCIAS = {
     aja: { nome: 'AJA', sheet: '1Bu5hq9aRMeWh-4bk9-34QZ0InyrtitQEved6-iEQ7Dc', gid: '1534942531' }
 };
@@ -177,12 +169,15 @@ function parseCSV(t) {
     return rows.filter(x => x.some(v => v.trim()));
 }
 
-// Soma n dias úteis (seg-sex) a partir de hoje
-function somaDiasUteis(n) {
-    const d = new Date();
-    while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; }
-    return d;
-}
+// Feriados: nacionais sempre; do Rio e pontos facultativos federais conforme as caixas (lembradas neste navegador)
+const OPC_FER = 'previsao_feriados_v1';
+let opc = { rio: true, facultativos: true }; try { opc = { ...opc, ...JSON.parse(localStorage.getItem(OPC_FER) || '{}') }; } catch (e) {}
+$('rio').checked = opc.rio; $('fac').checked = opc.facultativos;
+['rio', 'fac'].forEach(id => $(id).addEventListener('change', () => {
+    opc = { rio: $('rio').checked, facultativos: $('fac').checked };
+    try { localStorage.setItem(OPC_FER, JSON.stringify(opc)); } catch (e) {}
+    Object.keys(AGENCIAS).forEach(calcular);
+}));
 
 function calcular(k) {
     const d = dados[k]; if (!d) return;
@@ -203,7 +198,10 @@ function calcular(k) {
     const semanas = pend / cap;
     const diasUteis = Math.ceil(semanas * 5);
     $(`${k}-sem`).textContent = `${semanas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} semanas (${fmtInt(diasUteis)} dias úteis)`;
-    const dt = somaDiasUteis(diasUteis);
+    const dt = FERIADOS.somaDiasUteis(diasUteis, opc);
+    const fs = FERIADOS.entre(new Date(), dt, opc);
+    $('fer-resumo').textContent = `Feriados e pontos facultativos até a data prevista (${fs.length})`;
+    $('fer-lista').innerHTML = fs.map(f => `<li>${f.d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })} — ${f.nome}</li>`).join('') || '<li>Nenhum no período.</li>';
     $(`${k}-data`).innerHTML = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
         + ` <span class="mes">(${dt.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })})</span>`;
 }
