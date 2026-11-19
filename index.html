@@ -169,18 +169,6 @@
             margin-bottom: 8px;
         }
     </style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e3a8a">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Base Territorial">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
-</script>
 </head>
 <body>
 
@@ -213,7 +201,6 @@ if ('serviceWorker' in navigator) {
     <div id="sec-escolha" class="form-section">
         <h2>Escolha o acesso</h2>
         <p class="sub-escolha">Para qual página deseja ir?</p>
-        <a href="setoresABT.html" class="btn-submit">Setores ABT</a>
         <a href="setoresAJA.html" class="btn-submit">Setores AJA</a>
         <a href="previsao.html" class="btn-submit btn-musgo">Previsão de finalização</a>
         <a href="escala.html" class="btn-submit btn-marinho">Escala de Servidores</a>
@@ -296,7 +283,7 @@ if ('serviceWorker' in navigator) {
             const aprovada = await contaAprovada(data.user.id);
 
             if (aprovada === true) {
-                // Login correto: mostra a escolha entre AJA e ABT
+                // Login correto: mostra a escolha das páginas
                 document.getElementById('senha').value = '';
                 mostrarSessao('sec-escolha');
                 btn.disabled = false;

@@ -8,6 +8,7 @@
 
 <!-- SDK Oficial do Supabase e Proteção de Acesso -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="senha-acao.js"></script>
 <script>
     const SUPABASE_URL = 'https://rdxklpkukmuwwetftqde.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_sklR4egsYWIHZ3UMdWLyWQ_NHOVkD16'; // Substitua pela sua chave anon public
@@ -128,19 +129,10 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 @media(max-width:560px){.grid{grid-template-columns:1fr}}
 @media print{@page{size:landscape;margin:10mm}body.pr>*:not(#rd){display:none!important}body.pr #rd{position:static;width:auto;max-height:none;overflow:visible;border:0;color:#000;background:#fff}body.pr .wrap2{max-height:none;overflow:visible}.noprint{display:none!important}body.pp>*:not(#pd){display:none!important}body.pp #pd{position:static;width:auto;max-height:none;overflow:visible;border:0;margin:0;color:#000;background:#fff}body.pp .wrap2{max-height:none;overflow:visible}#pt table{font-size:10px}}
+th[data-k]{cursor:pointer;user-select:none;padding-left:4px;padding-right:4px}th.on{color:#ffd54f}
+#cm{position:fixed;z-index:60;width:220px;max-height:70vh;overflow:auto;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:6px;font:14px system-ui,sans-serif}
+#cm .cmb{display:flex;gap:6px}#cm .cmb button{flex:1;padding:5px 6px;font-size:13px}#cm .cmt{padding:6px}#cm .cml{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px}#cm .cml label{display:flex;gap:6px;align-items:center;padding:2px 0;white-space:nowrap}#cm .cmn{color:var(--mut);font-size:12px}
 </style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e3a8a">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Base Territorial">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
-</script>
 </head>
 <body>
 <header>
@@ -161,6 +153,7 @@ if ('serviceWorker' in navigator) {
   <button title="Gerar relatório por coluna e critério" id="rpt">Relatório</button>
   <button title="Reler os dados da planilha agora" id="rf">Atualizar da planilha</button>
   <button title="Baixar todos os setores em arquivo CSV" id="exp">Exportar CSV</button>
+  <button title="Alterar a senha usada para desfazer concluídos e para selecionar setores no mapa" id="bsenha" onclick="alterarSenha()">Alterar senha</button>
   <button class="p" title="Abrir o mapa de acompanhamento dos setores" id="bmap" onclick="location.href='mapaAJA.html'">Mapa Acompanhamento</button>
 </div>
 <div class="wrap"><table>
@@ -252,7 +245,31 @@ function apmCell(d){const a=apmArr(d.apm),m=(marcas.get(String(d.setor).trim())|
  if(d.ok)return`<td class="apmc">${a.map(n=>`<div class="apmn">${esc(n)}</div>`).join("")}${m&&!a.includes(m)?`<div class="apmn">${esc(m)}</div>`:""}</td>`;
  return`<td class="apmc${a.length||extra?" has":""}">${a.map((n,i)=>`<span class="chip">${esc(n)}<button data-n="${i}" title="Remover ${esc(n)}" aria-label="Remover ${esc(n)}">✕</button></span>`).join("")}${extra}<select class="apm" aria-label="Adicionar APM">${apmAddOpts(a)}</select></td>`}
 const fillApmForm=()=>{$("sapm").innerHTML=apmList().map(n=>`<label><input type="checkbox" name="apm" value="${esc(n)}">${esc(n)}</label>`).join("")||'<span style="color:var(--mut);font-size:13px">Nenhum APM na lista</span>'};
-$("hr").innerHTML=H.map((h,i)=>K[i]==="pri"?'<th class="two">Prioridade<br>CNEFE / PNAD</th>':`<th>${h}</th>`).join("")+'<th class="act"></th>';
+const SORT_K=["setor","euv","edoc","tipo","bairro","pri"];
+let ord=null;const colF={};
+const cv=(d,k)=>String(d[k]??"").trim();
+function passaCol(d){for(const k in colF){const f=colF[k],v=cv(d,k);if(f.txt&&!v.toLowerCase().includes(f.txt))return false;if(f.vals&&!f.vals.has(v))return false}return true}
+function ordCol(a,b){return ord?ord.dir*cv(a[0],ord.k).localeCompare(cv(b[0],ord.k),"pt-BR",{numeric:true}):0}
+function renderHead(){$("hr").innerHTML=H.map((h,i)=>{const k=K[i];if(!SORT_K.includes(k))return`<th>${h}</th>`;
+ const seta=ord&&ord.k===k?(ord.dir>0?" ▲":" ▼"):" ▾",on=colF[k]&&(colF[k].txt||colF[k].vals)?"on":"",lab=k==="pri"?"Prioridade<br>CNEFE / PNAD":h;
+ return`<th class="${on}${k==="pri"?" two":""}" data-k="${k}" title="Clique para ordenar ou filtrar">${lab}${seta}</th>`}).join("")+'<th class="act"></th>'}
+function fecharMenu(){const m=document.getElementById("cm");if(m)m.remove()}
+function menuCol(th){const k=th.dataset.k;fecharMenu();
+ const vals=[...new Set(data.map(d=>cv(d,k)))].sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true})),f=colF[k]||(colF[k]={txt:"",vals:null}),m=document.createElement("div"),r=th.getBoundingClientRect();
+ m.id="cm";m.style.left=Math.max(4,Math.min(r.left,innerWidth-230))+"px";m.style.top=(r.bottom+2)+"px";
+ m.innerHTML='<div class="cmb"><button data-o="1">▲ A → Z</button><button data-o="-1">▼ Z → A</button></div><input class="cmt" placeholder="Contém…" value="'+esc(f.txt)+'">'
+  +(vals.length<=80?'<div class="cml">'+vals.map(v=>`<label><input type="checkbox" value="${esc(v)}"${!f.vals||f.vals.has(v)?" checked":""}> ${esc(v)||"(vazio)"}</label>`).join("")+"</div>":'<div class="cmn">Muitos valores: use o campo "Contém…".</div>')
+  +'<div class="cmb"><button data-o="0">Limpar coluna</button><button data-o="x">Fechar</button></div>';
+ m.onclick=e=>{const b=e.target.closest("button");if(!b)return;const o=b.dataset.o;
+  if(o==="1"||o==="-1")ord={k,dir:+o};else if(o==="0"){delete colF[k];if(ord&&ord.k===k)ord=null}
+  fecharMenu();render()};
+ m.oninput=e=>{if(e.target.classList.contains("cmt")){f.txt=e.target.value.trim().toLowerCase();render()}};
+ m.onchange=e=>{if(e.target.type==="checkbox"){const c=[...m.querySelectorAll(".cml input")];f.vals=c.every(x=>x.checked)?null:new Set(c.filter(x=>x.checked).map(x=>x.value));render()}};
+ document.body.append(m);const t=m.querySelector(".cmt");if(t)t.focus()}
+$("hr").addEventListener("click",e=>{const th=e.target.closest("th[data-k]");if(th)menuCol(th)});
+document.addEventListener("mousedown",e=>{if(!e.target.closest("#cm")&&!e.target.closest("th[data-k]"))fecharMenu()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")fecharMenu()});
+renderHead();
 function fmtTel(l){if(!/^[\d\s().+-]+$/.test(l))return l;let n=l.replace(/\D/g,"");if((n.length===12||n.length===13)&&n.startsWith("55"))n=n.slice(2);
  return n.length===11?`(${n.slice(0,2)}) ${n.slice(2,7)}-${n.slice(7)}`:n.length===10?`(${n.slice(0,2)}) ${n.slice(2,6)}-${n.slice(6)}`:l}
 const TSEP=/[;,\/|]+|\s+(?:e|ou)\s+/i;
@@ -316,9 +333,9 @@ function bairros(){const u=k=>[...new Set(data.map(d=>d[k]).filter(Boolean))].so
  $("bl").innerHTML=b.map(x=>`<option value="${esc(x)}">`).join("")}
 function ajustaBairro(){try{const c=ajustaBairro.c||(ajustaBairro.c=document.createElement("canvas").getContext("2d"));c.font="bold 15px Georgia,'Times New Roman',serif";let w=c.measureText("Bairro").width;data.forEach(d=>{if(d.bairro)w=Math.max(w,c.measureText(d.bairro).width)});document.querySelector(".wrap").style.setProperty("--wb",Math.ceil(w+28)+"px")}catch(e){}}
 function render(){
- ajustaBairro();
+ renderHead();ajustaBairro();
  const fb=$("fb").value,fs=$("fs").value,fp=$("fp").value;
- const rows=data.map((d,i)=>[d,i]).filter(([d])=>(!fsetor||d.setor===fsetor||(fsetor.length===4&&d.setor.endsWith(fsetor)))&&(!fb||d.bairro===fb)&&(!fs||(fs==="d")===d.ok)&&(!fp||(fp==="-"?!d.pri:d.pri===fp)));
+ const rows=data.map((d,i)=>[d,i]).filter(([d])=>(!fsetor||d.setor===fsetor||(fsetor.length===4&&d.setor.endsWith(fsetor)))&&(!fb||d.bairro===fb)&&(!fs||(fs==="d")===d.ok)&&(!fp||(fp==="-"?!d.pri:d.pri===fp))&&passaCol(d)).sort(ordCol);
  $("tb").innerHTML=rows.map(([d,i])=>`<tr class="${d.ok?"done":marcas.has(String(d.setor).trim())?"dist":d.pri==="CNEFE"?"cnefe":d.pri==="PNAD"?"pnad":""}" data-i="${i}">`+K.map(k=>k==="ok"?`<td class="chk"><input type="checkbox" ${d.ok?"checked":""} aria-label="Concluído"></td>`:k==="risco"?`<td class="chk"><input type="checkbox" data-r="1" ${d.risco?"checked":""} ${EDIT?"":"disabled"} aria-label="Área de Risco"></td>`:k==="pri"?`<td><select class="pri" aria-label="Prioridade CNEFE / PNAD" ${d.ok?"disabled":""}><option value="">—</option><option${d.pri==="CNEFE"?" selected":""}>CNEFE</option><option${d.pri==="PNAD"?" selected":""}>PNAD</option></select></td>`:k==="apm"?apmCell(d):`<td ${EDIT&&!d.ok?'contenteditable="plaintext-only"':""} ${ML.includes(k)?'class="ml" title="Enter = nova linha · Ctrl+Enter = confirmar"':""} data-k="${k}">${esc(d[k])}</td>`).join("")+`<td class="act"><button title="Excluir setor" aria-label="Excluir" ${d.ok?"disabled":""}>✕</button></td></tr>`).join("");
  $("em").hidden=rows.length>0;
  const done=data.filter(d=>d.ok).length;
@@ -328,7 +345,9 @@ function render(){
 function setVal(d,k,v){const old=d[k],ant=d.setor;if(old===v)return;d[k]=v;
  if(k==="ok"&&!EDIT){local[d.setor]=v;try{localStorage.setItem("status_local",JSON.stringify(local))}catch(x){}}
  save();push("set",d,k,ant)}
-$("tb").addEventListener("change",e=>{if(e.target.type!=="checkbox")return;setVal(data[e.target.closest("tr").dataset.i],e.target.dataset.r?"risco":"ok",e.target.checked);render()});
+$("tb").addEventListener("change",async e=>{if(e.target.type!=="checkbox")return;const d=data[e.target.closest("tr").dataset.i],k=e.target.dataset.r?"risco":"ok";
+ if(k==="ok"&&d.ok&&!e.target.checked&&!(await pedirSenha("Digite a senha para desfazer a conclusão do setor "+d.setor+".")))return render();
+ setVal(d,k,e.target.checked);render()});
 $("tb").addEventListener("change",e=>{const t=e.target;if(!t.matches("select.pri,select.apm"))return;const d=data[t.closest("tr").dataset.i];
  if(t.classList.contains("apm")){const a=apmArr(d.apm);if(t.value&&!a.includes(t.value)){a.push(t.value);setVal(d,"apm",a.join("\n"))}}
  else setVal(d,"pri",t.value);
@@ -425,7 +444,7 @@ addEventListener("afterprint",()=>document.body.classList.remove("pr"));
 const PCOLS=["setor","euv","edoc","tipo","bairro","pri","end","tel","obs","apm"];
 $("pcl").innerHTML=K.map((k,i)=>`<label><input type="checkbox" value="${k}"${PCOLS.includes(k)?" checked":""}> ${H[i]}</label>`).join("");
 function prRows(m){const fb=$("fb").value,fs=$("fs").value,fp=$("fp").value;
- return data.filter(d=>m==="a"?true:m==="p"?!d.ok:m==="d"?d.ok:(!fsetor||d.setor===fsetor||(fsetor.length===4&&d.setor.endsWith(fsetor)))&&(!fb||d.bairro===fb)&&(!fs||(fs==="d")===d.ok)&&(!fp||(fp==="-"?!d.pri:d.pri===fp)))}
+ return data.filter(d=>m==="a"?true:m==="p"?!d.ok:m==="d"?d.ok:(!fsetor||d.setor===fsetor||(fsetor.length===4&&d.setor.endsWith(fsetor)))&&(!fb||d.bairro===fb)&&(!fs||(fs==="d")===d.ok)&&(!fp||(fp==="-"?!d.pri:d.pri===fp))&&passaCol(d))}
 function prDesc(m){if(m!=="t")return{a:"Todos os setores",p:"Setores pendentes",d:"Setores concluídos"}[m];
  const p=[];if(fsetor)p.push("setor "+fsetor);if($("fb").value)p.push($("fb").value);if($("fs").value)p.push($("fs").selectedOptions[0].text);if($("fp").value)p.push($("fp").selectedOptions[0].text);
  return p.length?"Filtros: "+p.join(" · "):"Todos os setores (sem filtros)"}
