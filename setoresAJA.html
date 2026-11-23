@@ -213,9 +213,12 @@ const apmArr=v=>String(v||"").split("\n").filter(Boolean);
 const apmList=()=>(APMS||[...new Set(data.flatMap(d=>apmArr(d.apm)))]).slice().sort((a,b)=>a.localeCompare(b,"pt-BR"));
 function apmAddOpts(sel){return'<option value="">+ APM</option>'+apmList().filter(x=>!sel.includes(x)).map(x=>`<option>${esc(x)}</option>`).join("")}
 const marcas=new Map();   // setor -> servidor marcado no mapaAJA.html (tabela setor_servidor, somente leitura aqui)
-function apmCell(d){const a=apmArr(d.apm),m=(marcas.get(String(d.setor).trim())||"").trim(),extra=m&&!a.includes(m)?`<span class="chip mapa" title="Marcado no mapa">${esc(m)}</span>`:"";
- if(d.ok)return`<td class="apmc">${a.map(n=>`<div class="apmn">${esc(n)}</div>`).join("")}${m&&!a.includes(m)?`<div class="apmn">${esc(m)}</div>`:""}</td>`;
- return`<td class="apmc${a.length||extra?" has":""}">${a.map((n,i)=>`<span class="chip">${esc(n)}<button data-n="${i}" title="Remover ${esc(n)}" aria-label="Remover ${esc(n)}">✕</button></span>`).join("")}${extra}<select class="apm" aria-label="Adicionar APM">${apmAddOpts(a)}</select></td>`}
+const chave=d=>String(d.setor).trim();
+/* Nomes do APM do setor: a distribuição gravada no Supabase (mapa e planilha) tem prioridade; sem ela, vale a coluna APM da planilha */
+const nomes=d=>{const m=marcas.get(chave(d));return m?m.split("\n").map(x=>x.trim()).filter(Boolean):apmArr(d.apm)};
+function apmCell(d){const a=nomes(d);
+ if(d.ok)return`<td class="apmc">${a.map(n=>`<div class="apmn">${esc(n)}</div>`).join("")}</td>`;
+ return`<td class="apmc${a.length?" has":""}">${a.map((n,i)=>`<span class="chip">${esc(n)}<button data-n="${i}" title="Remover ${esc(n)}" aria-label="Remover ${esc(n)}">✕</button></span>`).join("")}<select class="apm" aria-label="Adicionar APM">${apmAddOpts(a)}</select></td>`}
 const fillApmForm=()=>{$("sapm").innerHTML=apmList().map(n=>`<label><input type="checkbox" name="apm" value="${esc(n)}">${esc(n)}</label>`).join("")||'<span style="color:var(--mut);font-size:13px">Nenhum APM na lista</span>'};
 const SORT_K=["setor","euv","edoc","tipo","bairro","pri"];
 let ord=null;const colF={};
@@ -283,6 +286,14 @@ async function carregarMarcas(){
   const sig=a=>[...a].sort().join("|"),mudou=sig([...m].map(x=>x.join("="))) !== sig([...marcas].map(x=>x.join("=")));
   if(mudou){marcas.clear();m.forEach((v,k)=>marcas.set(k,v));render()}
  }catch(e){console.warn("Marcações do mapa não carregadas:",e.message||e)}}
+/* Grava a distribuição do setor no Supabase (a mesma que o mapa usa): apagar aqui apaga no mapa */
+async function gravarMarca(d,a){
+ const s=chave(d),v=a.join("\n");
+ if(a.length)marcas.set(s,v);else marcas.delete(s);
+ hold=Date.now()+8000;
+ try{const t=_supabase.from("setor_servidor"),r=a.length?await t.upsert({mapa:"AJA",setor:s,servidor:v,atualizado_em:new Date().toISOString()},{onConflict:"mapa,setor"}):await t.delete().eq("mapa","AJA").eq("setor",s);
+  if(r.error)throw r.error}catch(e){sv("⚠ Distribuição não gravada para o mapa: "+(e.message||e),"#c0392b")}}
+function setApm(d,a){setVal(d,"apm",a.join("\n"));gravarMarca(d,a)}
 let fila=[],enviando=false;try{const f=JSON.parse(localStorage.getItem("fila_aja")||"[]");if(Array.isArray(f))fila=f}catch(e){}
 function saveFila(){try{localStorage.setItem("fila_aja",JSON.stringify(fila))}catch(e){}}
 function btnSalvar(){const b=$("bsv"),n=fila.length;b.disabled=!n||enviando;b.textContent=n?`Salvar (${n})`:"Salvar";b.classList.toggle("alt",!!n);
@@ -308,7 +319,7 @@ function render(){
  renderHead();ajustaBairro();
  const fb=$("fb").value,fs=$("fs").value,fp=$("fp").value;
  const rows=data.map((d,i)=>[d,i]).filter(([d])=>(!fsetor||d.setor===fsetor||(fsetor.length===4&&d.setor.endsWith(fsetor)))&&(!fb||d.bairro===fb)&&(!fs||(fs==="d")===d.ok)&&(!fp||(fp==="-"?!d.pri:d.pri===fp))&&passaCol(d)).sort(ordCol);
- $("tb").innerHTML=rows.map(([d,i])=>`<tr class="${d.ok?"done":marcas.has(String(d.setor).trim())?"dist":d.pri==="CNEFE"?"cnefe":d.pri==="PNAD"?"pnad":""}" data-i="${i}">`+K.map(k=>k==="ok"?`<td class="chk"><input type="checkbox" ${d.ok?"checked":""} aria-label="Concluído"></td>`:k==="risco"?`<td class="chk"><input type="checkbox" data-r="1" ${d.risco?"checked":""} ${EDIT?"":"disabled"} aria-label="Área de Risco"></td>`:k==="pri"?`<td><select class="pri" aria-label="Prioridade CNEFE / PNAD" ${d.ok?"disabled":""}><option value="">—</option><option${d.pri==="CNEFE"?" selected":""}>CNEFE</option><option${d.pri==="PNAD"?" selected":""}>PNAD</option></select></td>`:k==="apm"?apmCell(d):`<td ${EDIT&&!d.ok?'contenteditable="plaintext-only"':""} ${ML.includes(k)?'class="ml" title="Enter = nova linha · Ctrl+Enter = confirmar"':""} data-k="${k}">${esc(d[k])}</td>`).join("")+`<td class="act"><button title="Excluir setor" aria-label="Excluir" ${d.ok?"disabled":""}>✕</button></td></tr>`).join("");
+ $("tb").innerHTML=rows.map(([d,i])=>`<tr class="${d.ok?"done":nomes(d).length?"dist":d.pri==="CNEFE"?"cnefe":d.pri==="PNAD"?"pnad":""}" data-i="${i}">`+K.map(k=>k==="ok"?`<td class="chk"><input type="checkbox" ${d.ok?"checked":""} aria-label="Concluído"></td>`:k==="risco"?`<td class="chk"><input type="checkbox" data-r="1" ${d.risco?"checked":""} ${EDIT?"":"disabled"} aria-label="Área de Risco"></td>`:k==="pri"?`<td><select class="pri" aria-label="Prioridade CNEFE / PNAD" ${d.ok?"disabled":""}><option value="">—</option><option${d.pri==="CNEFE"?" selected":""}>CNEFE</option><option${d.pri==="PNAD"?" selected":""}>PNAD</option></select></td>`:k==="apm"?apmCell(d):`<td ${EDIT&&!d.ok?'contenteditable="plaintext-only"':""} ${ML.includes(k)?'class="ml" title="Enter = nova linha · Ctrl+Enter = confirmar"':""} data-k="${k}">${esc(d[k])}</td>`).join("")+`<td class="act"><button title="Excluir setor" aria-label="Excluir" ${d.ok?"disabled":""}>✕</button></td></tr>`).join("");
  $("em").hidden=rows.length>0;
  const done=data.filter(d=>d.ok).length;
  const pc=n=>(data.length?n/data.length*100:0).toLocaleString("pt-BR",{maximumFractionDigits:1})+"%";
@@ -321,10 +332,10 @@ $("tb").addEventListener("change",async e=>{if(e.target.type!=="checkbox")return
  if(k==="ok"&&d.ok&&!e.target.checked&&!(await pedirSenha("Digite a senha para desfazer a conclusão do setor "+d.setor+".")))return render();
  setVal(d,k,e.target.checked);render()});
 $("tb").addEventListener("change",e=>{const t=e.target;if(!t.matches("select.pri,select.apm"))return;const d=data[t.closest("tr").dataset.i];
- if(t.classList.contains("apm")){const a=apmArr(d.apm);if(t.value&&!a.includes(t.value)){a.push(t.value);setVal(d,"apm",a.join("\n"))}}
+ if(t.classList.contains("apm")){const a=nomes(d);if(t.value&&!a.includes(t.value)){a.push(t.value);setApm(d,a)}}
  else setVal(d,"pri",t.value);
  render()});
-$("tb").addEventListener("click",e=>{const b=e.target.closest(".chip button");if(!b)return;const d=data[b.closest("tr").dataset.i],a=apmArr(d.apm);a.splice(+b.dataset.n,1);setVal(d,"apm",a.join("\n"));render()});
+$("tb").addEventListener("click",e=>{const b=e.target.closest(".chip button");if(!b)return;const d=data[b.closest("tr").dataset.i],a=nomes(d);a.splice(+b.dataset.n,1);setApm(d,a);render()});
 $("tb").addEventListener("focusout",e=>{const td=e.target.closest("td[data-k]");if(!td)return;const d=data[td.parentNode.dataset.i],k=td.dataset.k,v=norm(k,td.innerText);
  if(k==="setor"&&(!v||data.some(x=>x!==d&&x.setor===v))){alert(v?"Já existe um setor com este número.":"O setor não pode ficar vazio.");td.textContent=d.setor;return}
  td.textContent=v;if(d[k]!==v){setVal(d,k,v);if(k==="bairro"||k==="apm")bairros()}});
@@ -385,7 +396,7 @@ $("cn").onclick=()=>$("dlg").close();
 $("fm").addEventListener("submit",e=>{const f=new FormData($("fm")),s=f.get("setor").trim();
  if(data.some(x=>x.setor===s)){e.preventDefault();alert("Já existe um setor com este número.");return}
  const o={ok:false,risco:f.has("risco")};K.forEach(k=>{if(k!=="ok"&&k!=="risco")o[k]=norm(k,k==="apm"?f.getAll("apm").join("\n"):(f.get(k)??""))});
- data.push(o);push("add",o);save();bairros();render()});
+ data.push(o);push("add",o);save();bairros();render();if(apmArr(o.apm).length)gravarMarca(o,apmArr(o.apm))});
 function csvLine(a){return a.map(v=>{v=String(v??"");return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(";")}
 function dl(n,rows){const t="\ufeff"+rows.map(csvLine).join("\n");try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"text/csv;charset=utf-8"}));a.download=n;a.click()}catch(e){alert("Não foi possível baixar o arquivo neste ambiente.")}}
 $("exp").onclick=()=>dl("setores.csv",[H].concat(data.map(d=>K.map(k=>k==="ok"?(d.ok?"Sim":"Não"):k==="risco"?(d.risco?"Sim":"Não"):d[k]))));
@@ -396,7 +407,7 @@ theme(t0||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"));
 $("th").onclick=()=>theme(document.documentElement.dataset.theme==="dark"?"light":"dark");
 // ===== Relatório =====
 $("rc").innerHTML=H.map((h,i)=>`<option value="${i}">${h}</option>`).join("");
-const disp=(d,k)=>k==="ok"?(d.ok?"Concluído":"Pendente"):k==="risco"?(d.risco?"Sim":"Não"):k==="apm"?(()=>{const a=apmArr(d.apm),m=marcas.get(String(d.setor).trim());return(m&&!a.includes(m)?a.concat(m):a).join("\n")})():String(d[k]??"");
+const disp=(d,k)=>k==="ok"?(d.ok?"Concluído":"Pendente"):k==="risco"?(d.risco?"Sim":"Não"):k==="apm"?nomes(d).join("\n"):String(d[k]??"");
 let rep=[];
 function rlist(){const k=K[+$("rc").value];$("rl").innerHTML=[...new Set(data.flatMap(d=>disp(d,k).split("\n")).filter(Boolean))].sort().map(x=>`<option value="${esc(x)}">`).join("")}
 function report(){const i=+$("rc").value,k=K[i],op=$("rop").value,v=$("rv").value.trim().toLowerCase();

@@ -94,6 +94,7 @@
     <span class="extra">
       <select id="selServidor" title="Servidor que será associado aos próximos setores clicados"></select>
       <span id="selContagem">0 selecionados</span>
+      <button id="selSalvar" type="button" title="Grava agora os setores selecionados com o servidor escolhido">Salvar</button>
       <button id="selCopiar" type="button">Copiar</button>
       <button id="selLimpar" type="button" class="sec">Limpar tudo</button>
     </span>
@@ -110,6 +111,8 @@
     // Mesma planilha usada no setoresAJA.html (coluna "Status" = caixinha de concluído)
     const SHEET_ID = "1Bu5hq9aRMeWh-4bk9-34QZ0InyrtitQEved6-iEQ7Dc";
     const GID = "1534942531";
+    // Mesmo Apps Script do setoresAJA.html: o mapa grava o APM na coluna APM da planilha
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCN1MEM9tKXqBnr9AkA8vfgzr8GeZaJ4moyHLdIctHTjE_yY_WB6jskwj7h41SBILvdg/exec";
     const COR_CONCLUIDO = "#000080";   // azul marinho
     const OPACIDADE_CONCLUIDO = 0.70;  // 70% (0 = invisível, 1 = sólido)
     const COR_RISCO = "#FF0000";       // vermelho (Área de Risco)
@@ -267,7 +270,7 @@
     function tooltipHtml(codigo) {
       let h = `Setor ${codigo.slice(0, -4)}<b>${codigo.slice(-4)}</b>`;
       const it = setores.get(codigo);
-      if (it && it.servidor) h += `<div class="servidor">Servidor: <b>${escHtml(it.servidor)}</b></div>`;
+      if (it && it.servidor) h += `<div class="servidor">Servidor: <b>${escHtml(String(it.servidor).replace(/\n/g, ", "))}</b></div>`;
       const d = infos.get(codigo);
       if (!d) return h;
       const l1 = [];
@@ -396,6 +399,26 @@
     }
 
     // ===== MARCAÇÕES COMPARTILHADAS (tabela setor_servidor no Supabase) =====
+    let apmPlan = new Map();       // setor -> APM(s) da coluna APM da planilha (separados por \n)
+    const escritos = new Map();    // setor -> hora da última gravação feita por este mapa na planilha
+    let remotoAtual = new Map();   // setor -> servidor(es) gravados na tabela setor_servidor
+    async function gravarPlanilha(setor, apm) {
+      const r = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ op: 'set', gid: GID, setor, ant: setor, k: 'apm', v: apm, row: null }) });
+      const t = (await r.text()).trim();
+      if (t !== 'ok') throw new Error('planilha: ' + (t || 'sem resposta'));
+    }
+    // Mostra no mapa a distribuição gravada (setor_servidor) ou, na falta dela, o APM da planilha
+    function aplicarMarcas() {
+      if (gravando || pendentes.size) return;
+      setores.forEach((it, c) => {
+        if (it.sel) return;                       // seleção em andamento neste computador
+        const n = remotoAtual.has(c) ? (remotoAtual.get(c) || apmPlan.get(c) || '') : (apmPlan.has(c) ? apmPlan.get(c) : null);
+        if (n !== null) {
+          if (!it.usado || it.servidor !== n) { it.usado = true; it.servidor = n; it.layer.setStyle(estiloDe(it)); }
+        } else if (it.usado) { it.usado = false; it.servidor = ''; it.layer.setStyle(estiloDe(it)); }
+      });
+    }
     const pendentes = new Map();   // código -> nome do servidor ('' = sem servidor) ou null (remover marcação)
     let gravando = false, ultimaGravacao = 0;
     function avisoMarcas(t) { const el = $('msgMarcas'); el.textContent = t || ''; el.style.display = t ? 'block' : 'none'; }
@@ -405,6 +428,15 @@
       const lote = new Map(pendentes);
       try {
         const up = [], del = [];
+        // 1) planilha (coluna APM): apagar ou trocar o servidor no mapa também muda na planilha
+        for (const [c, v] of lote) {
+          if (v === '') continue;                 // marcado sem servidor: não mexe na planilha
+          const atual = apmPlan.get(c) || '', novo = v === null ? '' : v;
+          if (atual === novo) continue;
+          await gravarPlanilha(c, novo);
+          escritos.set(c, Date.now());
+          if (novo) apmPlan.set(c, novo); else apmPlan.delete(c);
+        }
         lote.forEach((v, c) => v === null ? del.push(c)
           : up.push({ mapa: MAPA, setor: c, servidor: v, atualizado_em: new Date().toISOString() }));
         if (up.length) {
@@ -439,19 +471,14 @@
         }
         if (gravando || pendentes.size || t0 < ultimaGravacao) return;   // leitura ficou velha
         servidoresRemotos.clear();
-        remoto.forEach(n => { if (n) servidoresRemotos.add(n); });
+        remoto.forEach(n => { if (n) n.split('\n').forEach(x => { x = x.trim(); if (x) servidoresRemotos.add(x); }); });
+        remotoAtual = remoto;
         carregarServidores();
-        setores.forEach((it, c) => {
-          if (it.sel) return;                       // seleção em andamento neste computador
-          if (remoto.has(c)) {
-            const n = remoto.get(c);
-            if (!it.usado || it.servidor !== n) { it.usado = true; it.servidor = n; it.layer.setStyle(estiloDe(it)); }
-          } else if (it.usado) {
-            it.usado = false; it.servidor = ''; it.layer.setStyle(estiloDe(it));
-          }
-        });
+        aplicarMarcas();
+        if ($('msgMarcas').textContent.startsWith('Não foi possível ler')) avisoMarcas('');
       } catch (e) {
         console.warn('Marcações não carregadas:', e.message || e);
+        avisoMarcas('Não foi possível ler as distribuições salvas (' + (e.message || e) + ').');
       }
     }
     function alternarSelecao(item) {
@@ -525,6 +552,16 @@
         atualizarContagem();
       });
       $('selServidor').addEventListener('change', e => { servidorAtual = e.target.value; });
+      $('selSalvar').addEventListener('click', async () => {
+        encerrarSelecao();                       // grava os selecionados e continua no modo de seleção
+        atualizarContagem('Salvando…');
+        for (let i = 0; i < 40 && (gravando || pendentes.size); i++) {
+          await new Promise(r => setTimeout(r, 250));
+          if (!gravando && pendentes.size) await gravarPendentes();
+        }
+        atualizarContagem(pendentes.size ? 'NÃO salvou (veja o aviso)' : 'Salvo ✓');
+        setTimeout(() => atualizarContagem(), 2500);
+      });
       $('selCopiar').addEventListener('click', copiarSelecao);
       $('selLimpar').addEventListener('click', limparSelecao);
     })();
@@ -622,7 +659,7 @@
         } catch (e) {}
         if (iSetor < 0 || iStatus < 0) throw new Error('Colunas Setor/Status não encontradas');
 
-        const concluidos = new Set(), riscos = new Set(), prioridades = new Map();
+        const concluidos = new Set(), riscos = new Set(), prioridades = new Map(), novoPlan = new Map();
         const codigosDe = s => {
           if (setores.has(s)) return [s];
           if (s.length <= 4) return porFinal4.get(s.padStart(4, '0')) || [];
@@ -633,6 +670,7 @@
           if (!s) continue;
           const ok = /^(sim|true|1|x|verdadeiro)$/i.test((row[iStatus] || '').trim());
           if (iApm >= 0) String(row[iApm] || '').split(/[\n;]+/).map(n => n.trim()).filter(Boolean).forEach(n => servidoresPlanilha.add(n));
+          if (iApm >= 0) { const nm = String(row[iApm] || '').split(/[\n;]+/).map(n => n.trim()).filter(Boolean); if (nm.length) codigosDe(s).forEach(c => novoPlan.set(c, nm.join('\n'))); }
           const risco = iRisco >= 0 && /^(sim|true|1|x|verdadeiro)$/i.test((row[iRisco] || '').trim());
           if (ok) codigosDe(s).forEach(c => concluidos.add(c));
           if (risco) codigosDe(s).forEach(c => riscos.add(c));
@@ -652,6 +690,9 @@
           document.body.appendChild(el);
         }
         el.textContent = 'Prioridades (v3): CNEFE ' + nC + ' · PNAD ' + nP + (iPri < 0 ? ' · coluna não encontrada na planilha' : daPlanilha ? '' : ' · coluna sem valores na planilha');
+        // setores que este mapa acabou de gravar: mantém o valor local até a planilha refletir a mudança
+        escritos.forEach((t, c) => { if (Date.now() - t < 120000) { if (apmPlan.has(c)) novoPlan.set(c, apmPlan.get(c)); else novoPlan.delete(c); } });
+        apmPlan = novoPlan;
         carregarServidores();
         setores.forEach((item, codigo) => {
           const novo = concluidos.has(codigo), novoR = riscos.has(codigo), novoP = prioridades.get(codigo) || '';
@@ -662,6 +703,7 @@
             item.layer.setStyle(estiloDe(item));
           }
         });
+        aplicarMarcas();
       } catch (e) {
         console.warn('Status não atualizado:', e.message);
       }
@@ -677,7 +719,7 @@
         await carregarInfos();
         setInterval(() => { if (!document.hidden) { atualizarStatus(); carregarInfos(); gravarPendentes(); carregarMarcacoes(); } }, 30000);
         document.addEventListener('visibilitychange', () => { if (!document.hidden) { atualizarStatus(); gravarPendentes(); carregarMarcacoes(); } });
-        window.addEventListener('beforeunload', e => { if (pendentes.size) { e.preventDefault(); e.returnValue = ''; } });
+        window.addEventListener('beforeunload', e => { if (pendentes.size || selecionados.size) { e.preventDefault(); e.returnValue = ''; } });
       } catch (e) {
         console.error(e);
         $('aviso').textContent = 'Erro ao carregar o mapa: ' + e.message;
